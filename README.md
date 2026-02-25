@@ -17,21 +17,21 @@ If you generate many tracks on Suno and need an efficient way to listen through 
 ## Setup
 
 1. **Clone the repository**
-   \`\`\`bash
+   ```bash
    git clone https://github.com/your-username/suno-player.git
    cd suno-player
-   \`\`\`
+   ```
 
 2. **Install dependencies**
-   \`\`\`bash
+   ```bash
    npm install
-   \`\`\`
+   ```
 
 3. **Start the server**
-   \`\`\`bash
+   ```bash
    npm start
-   \`\`\`
-   The application will be available at \`http://localhost:3000\`.
+   ```
+   The application will be available at `http://localhost:3000`.
 
 ## Usage
 
@@ -40,7 +40,7 @@ To import directly from a Suno workspace or fetch track metadata, you need to pr
 1. Open the Suno website in your browser and log in.
 2. Open Developer Tools (F12) -> Network tab.
 3. Refresh the page or click around until you see API requests.
-4. Click on a request and find the \`Authorization\` header (it should start with \`Bearer \`).
+4. Click on a request and find the `Authorization` header (it should start with `Bearer `).
 5. Copy this value and paste it into the "Auth" setup screen in the Suno Player.
 
 ### Keyboard Shortcuts
@@ -57,11 +57,11 @@ Use keyboard shortcuts in the player for maximum efficiency:
 - `R`: View Results tab
 
 ## Data Storage
-All sessions, ratings, and notes are saved locally in the \`data/\` folder. No data is sent to external servers other than Suno's API.
+All sessions, ratings, and notes are saved locally in the `data/` folder. No data is sent to external servers other than Suno's API.
 
 ## Customization
-You can change the default port by setting the \`PORT\` environment variable before starting the server.
+You can change the default port by setting the `PORT` environment variable before starting the server.
 
-\`\`\`bash
+```bash
 PORT=8080 npm start
-\`\`\`
+```

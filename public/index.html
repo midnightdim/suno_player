@@ -932,6 +932,31 @@
       background: rgba(124, 92, 255, 0.15);
     }
 
+    .icon-picker .custom-icon-input {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--bg-glass);
+      border: 2px dashed var(--border);
+      font-size: 20px;
+      color: var(--text);
+      text-align: center;
+      outline: none;
+      transition: all 0.2s;
+      padding: 0;
+    }
+
+    .icon-picker .custom-icon-input:focus,
+    .icon-picker .custom-icon-input.selected {
+      border: 2px solid var(--accent);
+      background: rgba(124, 92, 255, 0.15);
+      border-style: solid;
+    }
+
+    .icon-picker .custom-icon-input::placeholder {
+      color: var(--text-dim);
+    }
+
     .lock-badge {
       font-size: 14px;
       flex-shrink: 0;
@@ -1652,17 +1677,31 @@
       }
     });
 
-    // ═══ ICON PICKER ═════════════════════════════════════
+    // ═══ ICON Picker ═════════════════════════════════════
     function initIconPicker() {
       const picker = document.getElementById('icon-picker');
       picker.innerHTML = SESSION_ICONS.map(icon =>
         `<button type="button" class="${icon === selectedIcon ? 'selected' : ''}" onclick="selectIcon(this,'${icon}')">${icon}</button>`
-      ).join('');
+      ).join('') + `<input type="text" class="custom-icon-input" placeholder="+" maxlength="2"
+                      onfocus="selectCustomIcon(this)" oninput="updateCustomIcon(this)" 
+                      title="Paste a custom emoji or symbol" />`;
     }
     function selectIcon(btn, icon) {
       selectedIcon = icon;
       document.querySelectorAll('#icon-picker button').forEach(b => b.classList.remove('selected'));
+      const customInp = document.querySelector('.custom-icon-input');
+      if (customInp) { customInp.classList.remove('selected'); customInp.value = ''; }
       btn.classList.add('selected');
+    }
+    function selectCustomIcon(inp) {
+      document.querySelectorAll('#icon-picker button').forEach(b => b.classList.remove('selected'));
+      inp.classList.add('selected');
+      if (inp.value) selectedIcon = inp.value;
+    }
+    function updateCustomIcon(inp) {
+      if (inp.value) {
+        selectedIcon = inp.value;
+      }
     }
 
     // ═══ PASSWORD PROMPT ═════════════════════════════════
