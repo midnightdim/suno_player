@@ -1,3 +1,5 @@
 node_modules/
 data/
 *.log
+get_suno_ids.js
+suno_player.html

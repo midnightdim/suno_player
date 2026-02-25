@@ -5,7 +5,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
-const RATINGS_FILE = path.join(DATA_DIR, 'ratings.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -13,29 +13,27 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── In-memory session store ────────────────────────────────────────────────
-let session = null;
+// ─── In-memory auth store ───────────────────────────────────────────────────
+let auth = null; // { authorization, deviceId, createdAt }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function loadRatings() {
+function loadSessions() {
   try {
-    if (fs.existsSync(RATINGS_FILE)) {
-      return JSON.parse(fs.readFileSync(RATINGS_FILE, 'utf8'));
+    if (fs.existsSync(SESSIONS_FILE)) {
+      return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
     }
   } catch (e) {
-    console.error('Failed to load ratings:', e.message);
+    console.error('Failed to load sessions:', e.message);
   }
   return {};
 }
 
-function saveRatings(data) {
-  fs.writeFileSync(RATINGS_FILE, JSON.stringify(data, null, 2), 'utf8');
+function saveSessions(data) {
+  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
 async function fetchSunoClip(id) {
-  // Try the public metadata endpoint first (no auth needed for public songs)
-  // Fall back to constructing CDN URLs
   const clip = {
     id,
     audioUrl: `https://cdn1.suno.ai/${id}.mp3`,
@@ -45,14 +43,14 @@ async function fetchSunoClip(id) {
     duration: null,
   };
 
-  if (!session) return clip;
+  if (!auth) return clip;
 
   try {
     const res = await fetch(`https://studio-api.prod.suno.com/api/clip/${id}`, {
       headers: {
-        'Authorization': session.authorization,
+        'Authorization': auth.authorization,
         'Content-Type': 'application/json',
-        ...(session.deviceId ? { 'Device-Id': session.deviceId } : {}),
+        ...(auth.deviceId ? { 'Device-Id': auth.deviceId } : {}),
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/147.0',
       },
     });
@@ -72,25 +70,175 @@ async function fetchSunoClip(id) {
   return clip;
 }
 
+async function fetchWorkspaceIds(workspaceId) {
+  if (!auth) throw new Error('Auth required to fetch workspace');
+
+  const allIds = [];
+  let currentCursor = null;
+  let pageIndex = 0;
+  const BASE = 'https://studio-api.prod.suno.com/api/feed/v3';
+
+  while (true) {
+    const bodyObj = {
+      cursor: currentCursor,
+      limit: 20,
+      filters: {
+        disliked: 'False',
+        trashed: 'False',
+        fromStudioProject: { presence: 'False' },
+        stem: { presence: 'False' },
+        workspace: { presence: 'True', workspaceId },
+      },
+      page: pageIndex,
+    };
+
+    const res = await fetch(BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': auth.authorization,
+        'Content-Type': 'application/json',
+        ...(auth.deviceId ? { 'Device-Id': auth.deviceId } : {}),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/147.0',
+      },
+      body: JSON.stringify(bodyObj),
+    });
+
+    if (!res.ok) throw new Error(`Suno API error: ${res.status}`);
+
+    const data = await res.json();
+    const clips = data?.clips ?? [];
+
+    if (!clips.length) break;
+
+    clips.forEach(c => {
+      if (c?.id) {
+        allIds.push({
+          id: c.id,
+          title: c.title || null,
+          style: c.metadata?.tags || c.metadata?.prompt || null,
+          imageUrl: c.image_url || c.image_large_url || `https://cdn2.suno.ai/image_${c.id}.jpeg`,
+          audioUrl: c.audio_url || `https://cdn1.suno.ai/${c.id}.mp3`,
+          duration: c.metadata?.duration || null,
+        });
+      }
+    });
+
+    console.log(`📄 Page ${pageIndex} → ${clips.length} clips (total: ${allIds.length})`);
+
+    if (!data.has_more || !data.next_cursor) break;
+    currentCursor = data.next_cursor;
+    pageIndex++;
+
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  return allIds;
+}
+
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
-// Session management
-app.post('/api/session', (req, res) => {
+// Auth management (server-level, not per-session)
+app.post('/api/auth', (req, res) => {
   const { authorization, deviceId } = req.body;
   if (!authorization) {
     return res.status(400).json({ error: 'Authorization token is required' });
   }
-  session = {
+  auth = {
     authorization: authorization.startsWith('Bearer ') ? authorization : `Bearer ${authorization}`,
     deviceId: deviceId || null,
     createdAt: new Date().toISOString(),
   };
-  console.log('Session created at', session.createdAt);
-  res.json({ ok: true, createdAt: session.createdAt });
+  console.log('Auth set at', auth.createdAt);
+  res.json({ ok: true, createdAt: auth.createdAt });
 });
 
-app.get('/api/session', (req, res) => {
-  res.json({ active: !!session, createdAt: session?.createdAt || null });
+app.get('/api/auth', (req, res) => {
+  res.json({ active: !!auth, createdAt: auth?.createdAt || null });
+});
+
+// Sessions CRUD
+app.get('/api/sessions', (req, res) => {
+  const sessions = loadSessions();
+  // Return summary list (without full track data for speed)
+  const list = Object.entries(sessions).map(([id, s]) => ({
+    id,
+    name: s.name,
+    createdAt: s.createdAt,
+    trackCount: s.tracks ? s.tracks.length : 0,
+    ratedCount: s.ratings ? Object.values(s.ratings).filter(r => r.rating).length : 0,
+  }));
+  list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(list);
+});
+
+app.get('/api/sessions/:id', (req, res) => {
+  const sessions = loadSessions();
+  const session = sessions[req.params.id];
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  res.json(session);
+});
+
+app.post('/api/sessions', (req, res) => {
+  const { name, tracks } = req.body;
+  if (!name) return res.status(400).json({ error: 'name is required' });
+
+  const sessions = loadSessions();
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  sessions[id] = {
+    name,
+    tracks: tracks || [],
+    ratings: {},
+    createdAt: new Date().toISOString(),
+  };
+  saveSessions(sessions);
+  res.json({ ok: true, id });
+});
+
+app.delete('/api/sessions/:id', (req, res) => {
+  const sessions = loadSessions();
+  delete sessions[req.params.id];
+  saveSessions(sessions);
+  res.json({ ok: true });
+});
+
+// Update session (save tracks, ratings, etc.)
+app.put('/api/sessions/:id', (req, res) => {
+  const sessions = loadSessions();
+  const session = sessions[req.params.id];
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const { tracks, ratings, name } = req.body;
+  if (tracks !== undefined) session.tracks = tracks;
+  if (ratings !== undefined) session.ratings = ratings;
+  if (name !== undefined) session.name = name;
+  session.updatedAt = new Date().toISOString();
+
+  saveSessions(sessions);
+  res.json({ ok: true });
+});
+
+// Save a single rating within a session
+app.post('/api/sessions/:id/rate', (req, res) => {
+  const sessions = loadSessions();
+  const session = sessions[req.params.id];
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const { trackId, rating, note, title, imageUrl, style } = req.body;
+  if (!trackId) return res.status(400).json({ error: 'trackId is required' });
+
+  if (!session.ratings) session.ratings = {};
+  session.ratings[trackId] = {
+    ...(session.ratings[trackId] || {}),
+    ...(rating !== undefined ? { rating } : {}),
+    ...(note !== undefined ? { note } : {}),
+    ...(title !== undefined ? { title } : {}),
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
+    ...(style !== undefined ? { style } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+
+  saveSessions(sessions);
+  res.json({ ok: true });
 });
 
 // Fetch metadata for a batch of track IDs
@@ -100,7 +248,6 @@ app.post('/api/metadata', async (req, res) => {
     return res.status(400).json({ error: 'ids array is required' });
   }
 
-  // Process in small batches to avoid hammering the API
   const BATCH_SIZE = 5;
   const results = [];
 
@@ -108,69 +255,36 @@ app.post('/api/metadata', async (req, res) => {
     const batch = ids.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(batch.map(id => fetchSunoClip(id)));
     results.push(...batchResults);
-
-    // Small delay between batches
-    if (i + BATCH_SIZE < ids.length) {
-      await new Promise(r => setTimeout(r, 200));
-    }
+    if (i + BATCH_SIZE < ids.length) await new Promise(r => setTimeout(r, 200));
   }
 
   res.json({ tracks: results });
 });
 
-// Ratings CRUD
-app.get('/api/ratings', (req, res) => {
-  res.json(loadRatings());
-});
+// Fetch all tracks from a Suno workspace
+app.post('/api/workspace', async (req, res) => {
+  const { workspaceId } = req.body;
+  if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' });
+  if (!auth) return res.status(401).json({ error: 'Auth token required. Set it first.' });
 
-app.post('/api/ratings', (req, res) => {
-  const { trackId, rating, note, title, imageUrl, style } = req.body;
-  if (!trackId) {
-    return res.status(400).json({ error: 'trackId is required' });
+  try {
+    const tracks = await fetchWorkspaceIds(workspaceId);
+    res.json({ tracks, count: tracks.length });
+  } catch (e) {
+    console.error('Workspace fetch error:', e.message);
+    res.status(500).json({ error: e.message });
   }
-
-  const ratings = loadRatings();
-  ratings[trackId] = {
-    ...(ratings[trackId] || {}),
-    ...(rating !== undefined ? { rating } : {}),
-    ...(note !== undefined ? { note } : {}),
-    ...(title !== undefined ? { title } : {}),
-    ...(imageUrl !== undefined ? { imageUrl } : {}),
-    ...(style !== undefined ? { style } : {}),
-    updatedAt: new Date().toISOString(),
-  };
-
-  saveRatings(ratings);
-  res.json({ ok: true });
 });
 
-// Bulk save ratings (for import/sync)
-app.post('/api/ratings/bulk', (req, res) => {
-  const { ratings: incoming } = req.body;
-  if (!incoming || typeof incoming !== 'object') {
-    return res.status(400).json({ error: 'ratings object is required' });
-  }
+// Export a session as downloadable JSON
+app.get('/api/sessions/:id/export', (req, res) => {
+  const sessions = loadSessions();
+  const session = sessions[req.params.id];
+  if (!session) return res.status(404).json({ error: 'Session not found' });
 
-  const existing = loadRatings();
-  Object.assign(existing, incoming);
-  saveRatings(existing);
-  res.json({ ok: true, count: Object.keys(existing).length });
-});
-
-// Delete a track from ratings
-app.delete('/api/ratings/:trackId', (req, res) => {
-  const ratings = loadRatings();
-  delete ratings[req.params.trackId];
-  saveRatings(ratings);
-  res.json({ ok: true });
-});
-
-// Export ratings as downloadable JSON
-app.get('/api/export', (req, res) => {
-  const ratings = loadRatings();
-  res.setHeader('Content-Disposition', 'attachment; filename=suno-ratings.json');
+  res.setHeader('Content-Disposition', `attachment; filename=suno-session-${req.params.id}.json`);
   res.setHeader('Content-Type', 'application/json');
-  res.json(ratings);
+  res.json(session);
 });
 
 // ─── Start ──────────────────────────────────────────────────────────────────
