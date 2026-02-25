@@ -1816,21 +1816,39 @@
       window.location.href = `/api/projects/${currentProjectSlug}/sessions/${currentSessionId}/export`;
     }
 
-    function downloadPerfect() {
+    async function downloadPerfect() {
       if (!sessionData) return;
       const perfect = sessionData.tracks.filter(t => sessionData.ratings?.[t.id]?.rating === 'PERFECT');
       if (!perfect.length) { toast('No PERFECT tracks'); return; }
-      const text = perfect.map(t => { const r = sessionData.ratings[t.id]; return `${t.title || t.id}\n  Download: https://cdn1.suno.ai/${t.id}.mp3\n  Suno: https://suno.com/song/${t.id}${r?.note ? '\n  Note: ' + r.note : ''}`; }).join('\n\n');
-      downloadBlob(text, 'perfect-tracks.txt', 'text/plain');
-      toast(`${perfect.length} perfect track(s) listed`);
+
+      toast(`Downloading ${perfect.length} perfect track(s)...`);
+      for (const t of perfect) {
+        const a = document.createElement('a');
+        a.href = `/api/download/${t.id}?title=${encodeURIComponent(t.title || t.id)}`;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        await new Promise(r => setTimeout(r, 800)); // Slight delay between downloads
+      }
     }
 
     function copyRatingSummary() {
       if (!sessionData) return;
       const lines = [], groups = { PERFECT: [], GOOD: [], OK: [], TRASH: [] };
-      sessionData.tracks.forEach(t => { const r = sessionData.ratings?.[t.id]; if (r?.rating && groups[r.rating]) groups[r.rating].push(`  ${t.title || t.id}${r.note ? ' — ' + r.note : ''}`); });
-      for (const [l, items] of Object.entries(groups)) { if (items.length > 0) { lines.push(`${l} (${items.length}):`, ...items, ''); } }
-      navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Summary copied!')).catch(() => toast('Copy failed'));
+      sessionData.tracks.forEach(t => {
+        const r = sessionData.ratings?.[t.id];
+        if (r?.rating && groups[r.rating]) {
+          const titleLine = `${t.title || t.id}${t.style ? ' / ' + t.style : ''}`;
+          groups[r.rating].push(`${titleLine}: https://suno.com/song/${t.id}`);
+        }
+      });
+      for (const [l, items] of Object.entries(groups)) {
+        if (items.length > 0) {
+          lines.push(`${l}:`, ...items, '');
+        }
+      }
+      navigator.clipboard.writeText(lines.join('\n').trim()).then(() => toast('Summary copied!')).catch(() => toast('Copy failed'));
     }
 
     function downloadBlob(c, f, t) { const b = new Blob([c], { type: t }), u = URL.createObjectURL(b), a = document.createElement('a'); a.href = u; a.download = f; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); }

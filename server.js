@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -551,7 +552,7 @@ app.get('/api/download/:id', (req, res) => {
     if (response.statusCode >= 400) {
       return res.status(response.statusCode).send('File not found or unreachable');
     }
-    const title = req.query.title ? req.query.title.replace(/[^a-z0-9 \-_]/gi, '').trim() : req.params.id;
+    const title = req.query.title ? req.query.title.replace(/[^a-zA-Z0-9 \-_]/gi, '').trim() : req.params.id;
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Disposition', `attachment; filename="${title}.mp3"`);
     response.pipe(res);
