@@ -5,6 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Suno Player</title>
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icons8-play-arcade-16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icons8-play-arcade-32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/icons/icons8-play-arcade-96.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -793,6 +796,17 @@
       font-size: 11px;
       color: var(--text-dim);
       margin-top: 2px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .result-info .meta.expanded {
+      -webkit-line-clamp: unset;
+      line-clamp: unset;
     }
 
     .result-info .note {
@@ -1283,13 +1297,8 @@
     // ═══ HOME SCREEN ════════════════════════════════════
     async function refreshHome() {
       // Check auth
-      try {
-        const r = await fetch('/api/auth');
-        const d = await r.json();
-        document.getElementById('auth-status').textContent = d.active ? '✅ Auth token set' : '⚠️ No auth token — workspace import and metadata disabled';
-      } catch (e) {
-        document.getElementById('auth-status').textContent = '⚠️ Server unreachable';
-      }
+      const hasToken = !!localStorage.getItem('sunoAuthToken');
+      document.getElementById('auth-status').textContent = hasToken ? '✅ Auth token set' : '⚠️ No auth token — workspace import and metadata disabled';
 
       // Load sessions
       try {
@@ -1353,7 +1362,8 @@
         document.getElementById('create-loading-text').textContent = `Fetching metadata for ${ids.length} tracks...`;
 
         try {
-          const r = await fetch('/api/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+          const auth = localStorage.getItem('sunoAuthToken') || '';
+          const r = await fetch('/api/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ ids }) });
           const d = await r.json();
           if (!r.ok) throw new Error(d.error);
           tracks = d.tracks;
@@ -1372,7 +1382,8 @@
         document.getElementById('create-loading-text').textContent = 'Fetching tracks from workspace...';
 
         try {
-          const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: wid }) });
+          const auth = localStorage.getItem('sunoAuthToken') || '';
+          const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ workspaceId: wid }) });
           const d = await r.json();
           if (!r.ok) throw new Error(d.error);
           tracks = d.tracks;
@@ -1453,17 +1464,16 @@
     function showAuthSetup() { switchScreen('auth-screen'); }
 
     async function submitAuth() {
-      const token = document.getElementById('auth-token').value.trim();
+      let token = document.getElementById('auth-token').value.trim();
       if (!token) { showError('auth-error', 'Paste your token'); return; }
       hideError('auth-error');
-      try {
-        const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorization: token }) });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
-        toast('Token saved!');
-        switchScreen('home-screen');
-        refreshHome();
-      } catch (e) { showError('auth-error', e.message); }
+      // Strip non-ASCII chars
+      token = token.replace(/[^\x00-\x7F]/g, '').trim();
+      token = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      localStorage.setItem('sunoAuthToken', token);
+      toast('Token saved locally!');
+      switchScreen('home-screen');
+      refreshHome();
     }
 
     // ═══ QUEUE & PLAYBACK ═══════════════════════════════
@@ -1653,7 +1663,7 @@
       <div class="result-thumb"><img src="${item.imageUrl || ''}" alt="" onerror="this.parentElement.innerHTML='🎶';"></div>
       <div class="result-info">
         <div class="title">${escHtml(item.title || item.id.slice(0, 12) + '...')}</div>
-        <div class="meta">${escHtml(item.style || '')} ${item.rating ? '' : '· unrated'}</div>
+        <div class="meta" title="Click to expand/collapse" onclick="this.classList.toggle('expanded')">${escHtml(item.style || '')} ${item.rating ? '' : '· unrated'}</div>
         ${item.note ? `<div class="note">📝 ${escHtml(item.note)}</div>` : ''}
       </div>
       ${item.rating ? `<span class="result-badge badge-${item.rating}">${item.rating}</span>` : ''}
@@ -1808,7 +1818,8 @@
         ids = [...new Set(ids)];
         if (ids.length > 0) {
           try {
-            const r = await fetch('/api/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+            const auth = localStorage.getItem('sunoAuthToken') || '';
+            const r = await fetch('/api/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ ids }) });
             const d = await r.json();
             if (!r.ok) throw new Error(d.error);
             newTracks = d.tracks;
@@ -1821,7 +1832,8 @@
         }
       } else if (editTabMode === 'workspace' && wid) {
         try {
-          const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: wid }) });
+          const auth = localStorage.getItem('sunoAuthToken') || '';
+          const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ workspaceId: wid }) });
           const d = await r.json();
           if (!r.ok) throw new Error(d.error);
           newTracks = d.tracks;

@@ -14,9 +14,6 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── In-memory auth store ───────────────────────────────────────────────────
-let auth = null; // { authorization, deviceId, createdAt }
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function loadSessions() {
@@ -34,7 +31,7 @@ function saveSessions(data) {
   fs.writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-async function fetchSunoClip(id) {
+async function fetchSunoClip(id, authObj = null) {
   const clip = {
     id,
     audioUrl: `https://cdn1.suno.ai/${id}.mp3`,
@@ -44,14 +41,14 @@ async function fetchSunoClip(id) {
     duration: null,
   };
 
-  if (!auth) return clip;
+  if (!authObj) return clip;
 
   try {
     const res = await fetch(`https://studio-api.prod.suno.com/api/clip/${id}`, {
       headers: {
-        'Authorization': auth.authorization,
+        'Authorization': authObj.authorization,
         'Content-Type': 'application/json',
-        ...(auth.deviceId ? { 'Device-Id': auth.deviceId } : {}),
+        ...(authObj.deviceId ? { 'Device-Id': authObj.deviceId } : {}),
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/147.0',
       },
     });
@@ -71,8 +68,8 @@ async function fetchSunoClip(id) {
   return clip;
 }
 
-async function fetchWorkspaceIds(workspaceId) {
-  if (!auth) throw new Error('Auth required to fetch workspace');
+async function fetchWorkspaceIds(workspaceId, authObj) {
+  if (!authObj) throw new Error('Auth required to fetch workspace');
 
   const allIds = [];
   let currentCursor = null;
@@ -96,9 +93,9 @@ async function fetchWorkspaceIds(workspaceId) {
     const res = await fetch(BASE, {
       method: 'POST',
       headers: {
-        'Authorization': auth.authorization,
+        'Authorization': authObj.authorization,
         'Content-Type': 'application/json',
-        ...(auth.deviceId ? { 'Device-Id': auth.deviceId } : {}),
+        ...(authObj.deviceId ? { 'Device-Id': authObj.deviceId } : {}),
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/147.0',
       },
       body: JSON.stringify(bodyObj),
@@ -137,27 +134,6 @@ async function fetchWorkspaceIds(workspaceId) {
 }
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
-
-// Auth management (server-level, not per-session)
-app.post('/api/auth', (req, res) => {
-  let { authorization, deviceId } = req.body;
-  if (!authorization) {
-    return res.status(400).json({ error: 'Authorization token is required' });
-  }
-  // Strip non-ASCII chars that break Node fetch headers (e.g. Unicode ellipsis from copy-paste)
-  authorization = authorization.replace(/[^\x00-\x7F]/g, '').trim();
-  auth = {
-    authorization: authorization.startsWith('Bearer ') ? authorization : `Bearer ${authorization}`,
-    deviceId: deviceId || null,
-    createdAt: new Date().toISOString(),
-  };
-  console.log('Auth set at', auth.createdAt);
-  res.json({ ok: true, createdAt: auth.createdAt });
-});
-
-app.get('/api/auth', (req, res) => {
-  res.json({ active: !!auth, createdAt: auth?.createdAt || null });
-});
 
 // Sessions CRUD
 app.get('/api/sessions', (req, res) => {
@@ -281,12 +257,15 @@ app.post('/api/metadata', async (req, res) => {
     return res.status(400).json({ error: 'ids array is required' });
   }
 
+  const authHeader = req.headers.authorization;
+  const authObj = authHeader ? { authorization: authHeader, deviceId: req.headers['device-id'] } : null;
+
   const BATCH_SIZE = 5;
   const results = [];
 
   for (let i = 0; i < ids.length; i += BATCH_SIZE) {
     const batch = ids.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(batch.map(id => fetchSunoClip(id)));
+    const batchResults = await Promise.all(batch.map(id => fetchSunoClip(id, authObj)));
     results.push(...batchResults);
     if (i + BATCH_SIZE < ids.length) await new Promise(r => setTimeout(r, 200));
   }
@@ -298,10 +277,12 @@ app.post('/api/metadata', async (req, res) => {
 app.post('/api/workspace', async (req, res) => {
   const { workspaceId } = req.body;
   if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' });
-  if (!auth) return res.status(401).json({ error: 'Auth token required. Set it first.' });
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Auth token required. Set it first.' });
+  const authObj = { authorization: authHeader, deviceId: req.headers['device-id'] };
 
   try {
-    const tracks = await fetchWorkspaceIds(workspaceId);
+    const tracks = await fetchWorkspaceIds(workspaceId, authObj);
     res.json({ tracks, count: tracks.length });
   } catch (e) {
     console.error('Workspace fetch error:', e.message);
