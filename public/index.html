@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Suno Player</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --bg-card: rgba(255,255,255,0.04);
+      --bg-glass: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.08);
+      --text: #e8e8ed;
+      --text-dim: #8888a0;
+      --accent: #7c5cff;
+      --accent-glow: rgba(124,92,255,0.3);
+      --trash: #ff4d6a;
+      --ok: #f0a030;
+      --good: #30d98c;
+      --perfect: #7c5cff;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%; width: 100%;
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── Screens ──────────────────────────────────────────────── */
+    .screen {
+      position: absolute; inset: 0;
+      display: none; flex-direction: column;
+      padding: 20px; padding-bottom: calc(20px + var(--safe-bottom));
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .screen.active { display: flex; }
+
+    /* ── Setup Screen ─────────────────────────────────────────── */
+    #setup-screen {
+      justify-content: center; align-items: center; gap: 28px;
+      background: radial-gradient(ellipse at 50% 0%, rgba(124,92,255,0.12) 0%, transparent 60%);
+    }
+
+    .logo { font-size: 48px; margin-bottom: 4px; }
+    .app-title { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .app-subtitle { font-size: 14px; color: var(--text-dim); max-width: 300px; text-align: center; line-height: 1.5; }
+
+    .input-group {
+      width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .input-group label {
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-dim);
+    }
+    .input-group input, .input-group textarea {
+      width: 100%; padding: 14px 16px;
+      background: var(--bg-glass); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text);
+      font-family: inherit; font-size: 14px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input-group input:focus, .input-group textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .input-group textarea {
+      min-height: 140px; resize: vertical;
+      font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.5;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 14px 28px; border: none; border-radius: var(--radius-sm);
+      font-family: inherit; font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; user-select: none;
+      -webkit-user-select: none;
+    }
+    .btn:active { transform: scale(0.96); }
+
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+    .btn-primary:hover { background: #6a4ae8; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: var(--bg-glass); color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+    .btn-sm { padding: 8px 16px; font-size: 13px; border-radius: 8px; }
+
+    .setup-step { display: none; width: 100%; max-width: 420px; flex-direction: column; align-items: center; gap: 20px; }
+    .setup-step.active { display: flex; }
+
+    .loading-spinner {
+      width: 40px; height: 40px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text { color: var(--text-dim); font-size: 14px; }
+    .error-text { color: var(--trash); font-size: 13px; text-align: center; }
+
+    /* ── Player Screen ────────────────────────────────────────── */
+    #player-screen {
+      gap: 0; padding: 0; overflow: hidden;
+    }
+
+    .player-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px 8px;
+      flex-shrink: 0;
+    }
+    .player-header .counter {
+      font-size: 13px; color: var(--text-dim); font-weight: 500;
+    }
+    .player-header .controls {
+      display: flex; gap: 8px;
+    }
+    .icon-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg-glass); border: 1px solid var(--border);
+      color: var(--text-dim); cursor: pointer; font-size: 16px;
+      transition: all 0.2s;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    .icon-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    .album-art-container {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 12px 30px; min-height: 0;
+      position: relative; overflow: hidden;
+    }
+
+    .album-art-bg {
+      position: absolute; inset: -40px; z-index: 0;
+      background-size: cover; background-position: center;
+      filter: blur(60px) brightness(0.3) saturate(1.4);
+      opacity: 0.6; transition: background-image 0.8s;
+    }
+
+    .album-art {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 340px; aspect-ratio: 1;
+      border-radius: var(--radius); overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      background: var(--bg-card);
+      transition: opacity 0.3s;
+    }
+    .album-art img {
+      width: 100%; height: 100%; object-fit: cover;
+      display: block;
+    }
+    .album-art .fallback {
+      width: 100%; height: 100%; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 72px; background: linear-gradient(135deg, #1a1a2e, #16213e);
+    }
+
+    .track-info {
+      padding: 12px 24px 4px; text-align: center; flex-shrink: 0;
+    }
+    .track-title {
+      font-size: 18px; font-weight: 600; letter-spacing: -0.3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .track-style {
+      font-size: 12px; color: var(--text-dim); margin-top: 4px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* Audio progress */
+    .audio-controls {
+      padding: 8px 24px 4px; flex-shrink: 0;
+    }
+    .progress-bar-container {
+      width: 100%; height: 28px; display: flex; align-items: center;
+      cursor: pointer; position: relative;
+    }
+    .progress-bar-track {
+      width: 100%; height: 4px; background: rgba(255,255,255,0.12);
+      border-radius: 2px; overflow: hidden; position: relative;
+    }
+    .progress-bar-fill {
+      height: 100%; background: var(--accent); border-radius: 2px;
+      width: 0%; transition: width 0.1s linear;
+    }
+    .progress-bar-container:active .progress-bar-track { height: 6px; }
+
+    .time-display {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums;
+      padding: 0 2px;
+    }
+
+    /* Playback controls */
+    .playback-controls {
+      display: flex; align-items: center; justify-content: center; gap: 24px;
+      padding: 4px 24px; flex-shrink: 0;
+    }
+    .play-btn {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--text); color: var(--bg); border: none;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; cursor: pointer; transition: transform 0.15s;
+    }
+    .play-btn:active { transform: scale(0.92); }
+    .skip-btn {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: transparent; border: none;
+      color: var(--text); font-size: 22px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0.7; transition: opacity 0.2s;
+    }
+    .skip-btn:hover { opacity: 1; }
+
+    /* Rating section */
+    .rating-section {
+      padding: 10px 20px; flex-shrink: 0;
+    }
+    .rating-buttons {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    }
+    .rate-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 12px 4px; border-radius: var(--radius-sm);
+      background: var(--bg-glass); border: 1.5px solid var(--border);
+      color: var(--text); cursor: pointer; font-family: inherit;
+      transition: all 0.2s; user-select: none;
+      -webkit-user-select: none;
+    }
+    .rate-btn:active { transform: scale(0.94); }
+    .rate-btn .emoji { font-size: 22px; }
+    .rate-btn .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .rate-btn[data-rating="TRASH"] { border-color: rgba(255,77,106,0.3); }
+    .rate-btn[data-rating="TRASH"]:hover, .rate-btn[data-rating="TRASH"].selected { background: rgba(255,77,106,0.15); border-color: var(--trash); }
+    .rate-btn[data-rating="OK"] { border-color: rgba(240,160,48,0.3); }
+    .rate-btn[data-rating="OK"]:hover, .rate-btn[data-rating="OK"].selected { background: rgba(240,160,48,0.15); border-color: var(--ok); }
+    .rate-btn[data-rating="GOOD"] { border-color: rgba(48,217,140,0.3); }
+    .rate-btn[data-rating="GOOD"]:hover, .rate-btn[data-rating="GOOD"].selected { background: rgba(48,217,140,0.15); border-color: var(--good); }
+    .rate-btn[data-rating="PERFECT"] { border-color: rgba(124,92,255,0.3); }
+    .rate-btn[data-rating="PERFECT"]:hover, .rate-btn[data-rating="PERFECT"].selected { background: rgba(124,92,255,0.15); border-color: var(--perfect); }
+
+    /* Note input */
+    .note-section {
+      padding: 0 20px 6px; flex-shrink: 0;
+    }
+    .note-row {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .note-input {
+      flex: 1; padding: 10px 14px;
+      background: var(--bg-glass); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: inherit; font-size: 13px; outline: none;
+      transition: border-color 0.2s;
+    }
+    .note-input:focus { border-color: var(--accent); }
+    .note-input::placeholder { color: var(--text-dim); }
+
+    .bottom-bar {
+      display: flex; justify-content: center; gap: 16px;
+      padding: 8px 20px calc(8px + var(--safe-bottom));
+      flex-shrink: 0;
+    }
+
+    /* ── Results Screen ───────────────────────────────────────── */
+    #results-screen {
+      gap: 16px;
+      background: var(--bg);
+    }
+
+    .results-header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .results-header h2 { font-size: 22px; font-weight: 700; }
+
+    .filter-tabs {
+      display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0;
+    }
+    .filter-tab {
+      padding: 7px 14px; border-radius: 20px;
+      background: var(--bg-glass); border: 1px solid var(--border);
+      color: var(--text-dim); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.2s;
+    }
+    .filter-tab.active {
+      background: var(--accent); border-color: var(--accent); color: #fff;
+    }
+
+    .results-list {
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .result-card {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; border-radius: var(--radius-sm);
+      background: var(--bg-card); border: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+    .result-card:hover { background: var(--bg-glass); }
+
+    .result-thumb {
+      width: 48px; height: 48px; border-radius: 8px;
+      overflow: hidden; flex-shrink: 0; background: var(--bg-glass);
+    }
+    .result-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+    .result-info {
+      flex: 1; min-width: 0;
+    }
+    .result-info .title {
+      font-size: 14px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .result-info .meta {
+      font-size: 11px; color: var(--text-dim); margin-top: 2px;
+    }
+    .result-info .note {
+      font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .result-badge {
+      padding: 4px 10px; border-radius: 12px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .badge-TRASH { background: rgba(255,77,106,0.15); color: var(--trash); }
+    .badge-OK { background: rgba(240,160,48,0.15); color: var(--ok); }
+    .badge-GOOD { background: rgba(48,217,140,0.15); color: var(--good); }
+    .badge-PERFECT { background: rgba(124,92,255,0.15); color: var(--perfect); }
+
+    .result-actions {
+      display: flex; gap: 4px; flex-shrink: 0;
+    }
+    .result-actions button {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--bg-glass); border: 1px solid var(--border);
+      color: var(--text-dim); cursor: pointer; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .result-actions button:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+
+    .results-footer {
+      display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+      padding-top: 8px; border-top: 1px solid var(--border);
+    }
+
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+      color: var(--text-dim);
+    }
+    .empty-state .icon { font-size: 48px; }
+    .empty-state p { font-size: 14px; }
+
+    /* ── Toast ─────────────────────────────────────────────────── */
+    .toast-container {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 100; display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      padding: 10px 20px; border-radius: 10px;
+      background: rgba(40,40,60,0.95); border: 1px solid var(--border);
+      color: var(--text); font-size: 13px; font-weight: 500;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      animation: toast-in 0.3s ease-out;
+      pointer-events: auto;
+    }
+    .toast.out { animation: toast-out 0.3s ease-in forwards; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(-12px); } }
+    @keyframes toast-out { to { opacity: 0; transform: translateY(-12px); } }
+
+    /* ── Misc ──────────────────────────────────────────────────── */
+    @media (min-width: 640px) {
+      .album-art { max-width: 300px; }
+      .rating-section, .note-section, .audio-controls, .playback-controls, .bottom-bar {
+        max-width: 480px; margin-left: auto; margin-right: auto; width: 100%;
+      }
+    }
+
+    .hidden { display: none !important; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ═══════════════ SETUP SCREEN ═══════════════ -->
+<div class="screen active" id="setup-screen">
+  <!-- Step 1: Auth -->
+  <div class="setup-step active" id="step-auth">
+    <div class="logo">🎵</div>
+    <div class="app-title">Suno Player</div>
+    <div class="app-subtitle">Review & rate your Suno tracks. Paste your auth token to begin.</div>
+    <div class="input-group">
+      <label>Authorization Token</label>
+      <input type="password" id="auth-token" placeholder="Bearer eyJhbGciOi..." autocomplete="off">
+    </div>
+    <button class="btn btn-primary" onclick="submitAuth()">Connect</button>
+    <button class="btn btn-secondary btn-sm" onclick="skipAuth()">Skip (no metadata)</button>
+    <div id="auth-error" class="error-text hidden"></div>
+  </div>
+
+  <!-- Step 2: Track IDs -->
+  <div class="setup-step" id="step-ids">
+    <div class="logo">📋</div>
+    <div class="app-title">Load Tracks</div>
+    <div class="app-subtitle">Paste your Suno track IDs — one per line or comma-separated.</div>
+    <div class="input-group">
+      <label>Track IDs</label>
+      <textarea id="track-ids" placeholder="c6371a9d-9c38-4b6e-9151-7f05667d48fa&#10;44ff0f58-a30f-4d5c-8b0c-9fd61ccba290&#10;..."></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="submitIds()">Load Tracks</button>
+    <div id="ids-error" class="error-text hidden"></div>
+  </div>
+
+  <!-- Step 3: Loading -->
+  <div class="setup-step" id="step-loading">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loading-status">Fetching track metadata...</div>
+  </div>
+</div>
+
+<!-- ═══════════════ PLAYER SCREEN ═══════════════ -->
+<div class="screen" id="player-screen">
+  <div class="player-header">
+    <span class="counter" id="track-counter">1 / 32</span>
+    <div class="controls">
+      <button class="icon-btn active" id="shuffle-btn" onclick="toggleShuffle()" title="Shuffle">🔀</button>
+      <button class="icon-btn active" id="auto-advance-btn" onclick="toggleAutoAdvance()" title="Auto-advance">⏭️</button>
+      <button class="icon-btn" id="results-btn" onclick="showResults()" title="Results">📊</button>
+    </div>
+  </div>
+
+  <div class="album-art-container">
+    <div class="album-art-bg" id="art-bg"></div>
+    <div class="album-art" id="album-art">
+      <img id="art-img" src="" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      <div class="fallback" style="display:none;">🎶</div>
+    </div>
+  </div>
+
+  <div class="track-info">
+    <div class="track-title" id="track-title">Loading...</div>
+    <div class="track-style" id="track-style"></div>
+  </div>
+
+  <div class="audio-controls">
+    <div class="progress-bar-container" id="progress-container">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+    </div>
+    <div class="time-display">
+      <span id="time-current">0:00</span>
+      <span id="time-duration">0:00</span>
+    </div>
+  </div>
+
+  <div class="playback-controls">
+    <button class="skip-btn" onclick="prevTrack()">⏮</button>
+    <button class="play-btn" id="play-btn" onclick="togglePlay()">▶</button>
+    <button class="skip-btn" onclick="nextTrack()">⏭</button>
+  </div>
+
+  <div class="rating-section">
+    <div class="rating-buttons">
+      <button class="rate-btn" data-rating="TRASH" onclick="rateTrack('TRASH')">
+        <span class="emoji">🗑️</span><span class="label">Trash</span>
+      </button>
+      <button class="rate-btn" data-rating="OK" onclick="rateTrack('OK')">
+        <span class="emoji">👌</span><span class="label">OK</span>
+      </button>
+      <button class="rate-btn" data-rating="GOOD" onclick="rateTrack('GOOD')">
+        <span class="emoji">👍</span><span class="label">Good</span>
+      </button>
+      <button class="rate-btn" data-rating="PERFECT" onclick="rateTrack('PERFECT')">
+        <span class="emoji">⭐</span><span class="label">Perfect</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="note-section">
+    <div class="note-row">
+      <input class="note-input" id="note-input" type="text" placeholder="Add a note..." maxlength="200">
+      <button class="btn btn-secondary btn-sm" onclick="saveNote()">💾</button>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <button class="btn btn-secondary btn-sm" onclick="openSunoPage()">🔗 Suno</button>
+  </div>
+</div>
+
+<!-- ═══════════════ RESULTS SCREEN ═══════════════ -->
+<div class="screen" id="results-screen">
+  <div class="results-header">
+    <h2>Ratings</h2>
+    <button class="icon-btn" onclick="showPlayer()" title="Back to player">🎵</button>
+  </div>
+
+  <div class="filter-tabs" id="filter-tabs">
+    <button class="filter-tab active" data-filter="ALL" onclick="filterResults('ALL')">All</button>
+    <button class="filter-tab" data-filter="PERFECT" onclick="filterResults('PERFECT')">⭐ Perfect</button>
+    <button class="filter-tab" data-filter="GOOD" onclick="filterResults('GOOD')">👍 Good</button>
+    <button class="filter-tab" data-filter="OK" onclick="filterResults('OK')">👌 OK</button>
+    <button class="filter-tab" data-filter="TRASH" onclick="filterResults('TRASH')">🗑️ Trash</button>
+    <button class="filter-tab" data-filter="UNRATED" onclick="filterResults('UNRATED')">— Unrated</button>
+  </div>
+
+  <div class="results-list" id="results-list"></div>
+
+  <div class="results-footer">
+    <button class="btn btn-secondary btn-sm" onclick="exportRatings()">📥 Export JSON</button>
+    <button class="btn btn-secondary btn-sm" onclick="downloadPerfect()">⭐ Download Perfect</button>
+    <button class="btn btn-secondary btn-sm" onclick="copyRatingSummary()">📋 Copy Summary</button>
+  </div>
+</div>
+
+<!-- Hidden audio element -->
+<audio id="audio" preload="auto"></audio>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+
+let tracks = [];          // [{id, title, style, imageUrl, audioUrl}]
+let ratings = {};         // {trackId: {rating, note, title, imageUrl, style, updatedAt}}
+let playQueue = [];       // [index into tracks[]]
+let queuePos = -1;
+let shuffleOn = true;
+let autoAdvance = true;
+let currentFilter = 'ALL';
+
+const audio = document.getElementById('audio');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERSISTENCE (localStorage + server sync)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const STORAGE_KEY = 'suno_player_state';
+
+function saveState() {
+  const state = {
+    tracks, ratings, shuffleOn, autoAdvance,
+    playQueue, queuePos,
+    savedAt: new Date().toISOString(),
+  };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+
+  // Async server sync
+  fetch('/api/ratings/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ratings }),
+  }).catch(() => {});
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+function clearState() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SETUP FLOW
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Check for saved state on load
+(function init() {
+  const saved = loadState();
+  if (saved && saved.tracks && saved.tracks.length > 0) {
+    tracks = saved.tracks;
+    ratings = saved.ratings || {};
+    shuffleOn = saved.shuffleOn !== undefined ? saved.shuffleOn : true;
+    autoAdvance = saved.autoAdvance !== undefined ? saved.autoAdvance : true;
+    playQueue = saved.playQueue || [];
+    queuePos = saved.queuePos !== undefined ? saved.queuePos : -1;
+
+    // Rebuild queue if empty
+    if (playQueue.length === 0) buildQueue();
+
+    updateToggles();
+    switchScreen('player-screen');
+    if (queuePos >= 0 && queuePos < playQueue.length) {
+      loadTrack(false); // don't autoplay on restore
+    } else {
+      nextTrack();
+    }
+    toast('Session restored');
+    return;
+  }
+
+  // Also check server for existing ratings
+  fetch('/api/ratings').then(r => r.json()).then(data => {
+    if (data && Object.keys(data).length > 0) {
+      ratings = data;
+    }
+  }).catch(() => {});
+})();
+
+function switchScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showSetupStep(stepId) {
+  document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('active'));
+  document.getElementById(stepId).classList.add('active');
+}
+
+async function submitAuth() {
+  const token = document.getElementById('auth-token').value.trim();
+  if (!token) {
+    showError('auth-error', 'Please paste your authorization token.');
+    return;
+  }
+
+  hideError('auth-error');
+  try {
+    const res = await fetch('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authorization: token }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create session');
+
+    toast('Connected!');
+    showSetupStep('step-ids');
+  } catch(e) {
+    showError('auth-error', e.message);
+  }
+}
+
+function skipAuth() {
+  toast('Skipping auth — metadata may be limited');
+  showSetupStep('step-ids');
+}
+
+async function submitIds() {
+  const raw = document.getElementById('track-ids').value.trim();
+  if (!raw) {
+    showError('ids-error', 'Please paste at least one track ID.');
+    return;
+  }
+
+  // Parse IDs: support newlines, commas, spaces, JSON arrays
+  let ids = raw
+    .replace(/[\[\]"']/g, '')
+    .split(/[\n,\s]+/)
+    .map(s => s.trim())
+    .filter(s => /^[a-f0-9-]{36}$/i.test(s));
+
+  if (ids.length === 0) {
+    showError('ids-error', 'No valid UUIDs found. Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+    return;
+  }
+
+  // Deduplicate
+  ids = [...new Set(ids)];
+
+  hideError('ids-error');
+  showSetupStep('step-loading');
+
+  try {
+    const statusEl = document.getElementById('loading-status');
+    statusEl.textContent = `Fetching metadata for ${ids.length} tracks...`;
+
+    const res = await fetch('/api/metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch metadata');
+
+    tracks = data.tracks;
+    buildQueue();
+    saveState();
+
+    statusEl.textContent = `Loaded ${tracks.length} tracks!`;
+    setTimeout(() => {
+      switchScreen('player-screen');
+      updateToggles();
+      nextTrack();
+    }, 500);
+
+  } catch(e) {
+    showSetupStep('step-ids');
+    showError('ids-error', `Failed: ${e.message}`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUEUE & PLAYBACK
+// ═══════════════════════════════════════════════════════════════════════════
+
+function buildQueue() {
+  // Queue = indices of unrated (no rating) tracks
+  const unrated = [];
+  const rated = [];
+
+  tracks.forEach((t, i) => {
+    const r = ratings[t.id];
+    if (!r || !r.rating || r.rating === 'UNRATED') {
+      unrated.push(i);
+    } else {
+      rated.push(i);
+    }
+  });
+
+  playQueue = shuffleOn ? shuffle([...unrated]) : [...unrated];
+  queuePos = -1;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function loadTrack(shouldPlay = true) {
+  if (queuePos < 0 || queuePos >= playQueue.length) {
+    // No more tracks
+    updateCounter();
+    return;
+  }
+
+  const track = tracks[playQueue[queuePos]];
+  if (!track) return;
+
+  // Update UI
+  document.getElementById('track-title').textContent = track.title || `Track ${track.id.slice(0, 8)}...`;
+  document.getElementById('track-style').textContent = track.style || '';
+
+  const img = document.getElementById('art-img');
+  const fallback = img.nextElementSibling;
+  img.style.display = '';
+  fallback.style.display = 'none';
+  img.src = track.imageUrl || '';
+
+  document.getElementById('art-bg').style.backgroundImage = track.imageUrl ? `url(${track.imageUrl})` : '';
+
+  // Note
+  const existingRating = ratings[track.id];
+  document.getElementById('note-input').value = existingRating?.note || '';
+
+  // Highlight existing rating
+  document.querySelectorAll('.rate-btn').forEach(btn => {
+    btn.classList.toggle('selected', existingRating?.rating === btn.dataset.rating);
+  });
+
+  // Audio
+  audio.src = track.audioUrl;
+  if (shouldPlay) {
+    audio.play().catch(() => {});
+  }
+
+  updateCounter();
+  updatePlayBtn();
+  saveState();
+}
+
+function updateCounter() {
+  const remaining = playQueue.length - queuePos - 1;
+  const total = playQueue.length;
+  const pos = Math.min(queuePos + 1, total);
+  document.getElementById('track-counter').textContent = `${pos} / ${total} · ${remaining} left`;
+}
+
+function nextTrack() {
+  queuePos++;
+  if (queuePos >= playQueue.length) {
+    // Check if there are more unrated tracks (TRASH removes them, so rebuild)
+    buildQueue();
+    if (playQueue.length === 0) {
+      toast('All tracks rated! 🎉');
+      showResults();
+      return;
+    }
+    queuePos = 0;
+  }
+  loadTrack();
+}
+
+function prevTrack() {
+  if (queuePos > 0) {
+    queuePos--;
+    loadTrack();
+  }
+}
+
+function togglePlay() {
+  if (audio.paused) {
+    audio.play().catch(() => {});
+  } else {
+    audio.pause();
+  }
+  updatePlayBtn();
+}
+
+function updatePlayBtn() {
+  document.getElementById('play-btn').textContent = audio.paused ? '▶' : '⏸';
+}
+
+// Audio events
+audio.addEventListener('play', updatePlayBtn);
+audio.addEventListener('pause', updatePlayBtn);
+audio.addEventListener('ended', () => {
+  updatePlayBtn();
+  if (autoAdvance) {
+    // Only auto-advance if track is already rated
+    const track = tracks[playQueue[queuePos]];
+    if (track && ratings[track.id]?.rating) {
+      nextTrack();
+    }
+  }
+});
+
+audio.addEventListener('timeupdate', () => {
+  if (!audio.duration) return;
+  const pct = (audio.currentTime / audio.duration) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('time-current').textContent = formatTime(audio.currentTime);
+  document.getElementById('time-duration').textContent = formatTime(audio.duration);
+});
+
+// Seekbar
+document.getElementById('progress-container').addEventListener('click', (e) => {
+  if (!audio.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  audio.currentTime = pct * audio.duration;
+});
+
+// Touch seek
+let seeking = false;
+document.getElementById('progress-container').addEventListener('touchstart', (e) => {
+  seeking = true;
+}, { passive: true });
+document.getElementById('progress-container').addEventListener('touchmove', (e) => {
+  if (!seeking || !audio.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const touch = e.touches[0];
+  const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+  audio.currentTime = pct * audio.duration;
+}, { passive: true });
+document.addEventListener('touchend', () => { seeking = false; });
+
+function formatTime(s) {
+  if (!s || isNaN(s)) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RATING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function rateTrack(rating) {
+  const track = tracks[playQueue[queuePos]];
+  if (!track) return;
+
+  // Save rating
+  ratings[track.id] = {
+    ...(ratings[track.id] || {}),
+    rating,
+    title: track.title,
+    imageUrl: track.imageUrl,
+    style: track.style,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Persist per-track to server
+  fetch('/api/ratings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackId: track.id, rating, title: track.title, imageUrl: track.imageUrl, style: track.style }),
+  }).catch(() => {});
+
+  // Highlight button
+  document.querySelectorAll('.rate-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.rating === rating);
+  });
+
+  // Visual feedback
+  const ratingLabels = { TRASH: '🗑️ Trashed', OK: '👌 OK', GOOD: '👍 Good', PERFECT: '⭐ Perfect' };
+  toast(ratingLabels[rating] || rating);
+
+  saveState();
+
+  // If "TRASH" — remove from queue and advance immediately
+  if (rating === 'TRASH') {
+    playQueue.splice(queuePos, 1);
+    if (queuePos >= playQueue.length) queuePos = 0;
+    if (playQueue.length === 0) {
+      toast('All tracks rated! 🎉');
+      showResults();
+      return;
+    }
+    loadTrack();
+    return;
+  }
+
+  // Auto-advance to next unrated track after a short delay
+  if (autoAdvance) {
+    setTimeout(() => {
+      // Remove current from queue since it's now rated
+      playQueue.splice(queuePos, 1);
+      if (playQueue.length === 0) {
+        toast('All tracks rated! 🎉');
+        showResults();
+        return;
+      }
+      if (queuePos >= playQueue.length) queuePos = 0;
+      loadTrack();
+    }, 400);
+  }
+}
+
+function saveNote() {
+  const track = tracks[playQueue[queuePos]];
+  if (!track) return;
+
+  const note = document.getElementById('note-input').value.trim();
+  ratings[track.id] = {
+    ...(ratings[track.id] || {}),
+    note,
+    updatedAt: new Date().toISOString(),
+  };
+
+  fetch('/api/ratings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackId: track.id, note }),
+  }).catch(() => {});
+
+  saveState();
+  toast('Note saved');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOGGLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+function toggleShuffle() {
+  shuffleOn = !shuffleOn;
+  updateToggles();
+  // Rebuild queue keeping current track
+  const currentTrackIdx = playQueue[queuePos];
+  buildQueue();
+  // Try to find current track in new queue
+  const found = playQueue.indexOf(currentTrackIdx);
+  if (found !== -1) queuePos = found;
+  else queuePos = 0;
+  updateCounter();
+  saveState();
+  toast(shuffleOn ? 'Shuffle ON' : 'Shuffle OFF');
+}
+
+function toggleAutoAdvance() {
+  autoAdvance = !autoAdvance;
+  updateToggles();
+  saveState();
+  toast(autoAdvance ? 'Auto-advance ON' : 'Auto-advance OFF');
+}
+
+function updateToggles() {
+  document.getElementById('shuffle-btn').classList.toggle('active', shuffleOn);
+  document.getElementById('auto-advance-btn').classList.toggle('active', autoAdvance);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESULTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showResults() {
+  switchScreen('results-screen');
+  renderResults();
+}
+
+function showPlayer() {
+  switchScreen('player-screen');
+}
+
+function filterResults(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.filter === filter);
+  });
+  renderResults();
+}
+
+function renderResults() {
+  const list = document.getElementById('results-list');
+
+  // Build display data
+  const items = tracks.map(t => {
+    const r = ratings[t.id] || {};
+    return { ...t, rating: r.rating || null, note: r.note || '', updatedAt: r.updatedAt };
+  });
+
+  // Filter
+  let filtered = items;
+  if (currentFilter === 'UNRATED') {
+    filtered = items.filter(i => !i.rating);
+  } else if (currentFilter !== 'ALL') {
+    filtered = items.filter(i => i.rating === currentFilter);
+  }
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📭</div>
+        <p>No tracks in this category</p>
+      </div>`;
+    return;
+  }
+
+  // Sort: PERFECT first, then GOOD, OK, TRASH, unrated
+  const order = { PERFECT: 0, GOOD: 1, OK: 2, TRASH: 3 };
+  filtered.sort((a, b) => (order[a.rating] ?? 4) - (order[b.rating] ?? 4));
+
+  list.innerHTML = filtered.map(item => `
+    <div class="result-card" data-id="${item.id}">
+      <div class="result-thumb">
+        <img src="${item.imageUrl || ''}" alt="" onerror="this.parentElement.innerHTML='🎶';">
+      </div>
+      <div class="result-info">
+        <div class="title">${item.title || item.id.slice(0, 12) + '...'}</div>
+        <div class="meta">${item.style || ''} ${item.rating ? '' : '· unrated'}</div>
+        ${item.note ? `<div class="note">📝 ${escHtml(item.note)}</div>` : ''}
+      </div>
+      ${item.rating ? `<span class="result-badge badge-${item.rating}">${item.rating}</span>` : ''}
+      <div class="result-actions">
+        <button onclick="playFromResults('${item.id}')" title="Play">▶</button>
+        <button onclick="window.open('https://suno.com/song/${item.id}','_blank')" title="Open in Suno">🔗</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function playFromResults(id) {
+  const idx = tracks.findIndex(t => t.id === id);
+  if (idx === -1) return;
+
+  // Make a queue of just this track + remaining
+  switchScreen('player-screen');
+  let qIdx = playQueue.indexOf(idx);
+  if (qIdx === -1) {
+    // Track was rated/removed from queue, add it back temporarily
+    playQueue.push(idx);
+    qIdx = playQueue.length - 1;
+  }
+  queuePos = qIdx;
+  loadTrack();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORT & DOWNLOAD
+// ═══════════════════════════════════════════════════════════════════════════
+
+function exportRatings() {
+  const data = JSON.stringify(ratings, null, 2);
+  downloadBlob(data, 'suno-ratings.json', 'application/json');
+  toast('Exported ratings');
+}
+
+function downloadPerfect() {
+  const perfect = tracks.filter(t => ratings[t.id]?.rating === 'PERFECT');
+  if (perfect.length === 0) {
+    toast('No PERFECT tracks yet');
+    return;
+  }
+
+  // Open each in new tab for manual download (browser limitation for cross-origin)
+  const urls = perfect.map(t => `https://cdn1.suno.ai/${t.id}.mp3`);
+  const info = perfect.map(t => ({
+    id: t.id,
+    title: t.title || t.id,
+    downloadUrl: `https://cdn1.suno.ai/${t.id}.mp3`,
+    sunoUrl: `https://suno.com/song/${t.id}`,
+    note: ratings[t.id]?.note || '',
+  }));
+
+  // Download the list as a text file
+  const text = info.map(i =>
+    `${i.title}\n  Download: ${i.downloadUrl}\n  Suno: ${i.sunoUrl}${i.note ? '\n  Note: ' + i.note : ''}`
+  ).join('\n\n');
+
+  downloadBlob(text, 'perfect-tracks.txt', 'text/plain');
+  toast(`${perfect.length} perfect track(s) listed`);
+}
+
+function copyRatingSummary() {
+  const lines = [];
+  const groups = { PERFECT: [], GOOD: [], OK: [], TRASH: [] };
+
+  tracks.forEach(t => {
+    const r = ratings[t.id];
+    if (r?.rating && groups[r.rating]) {
+      groups[r.rating].push(`  ${t.title || t.id}${r.note ? ' — ' + r.note : ''}`);
+    }
+  });
+
+  for (const [label, items] of Object.entries(groups)) {
+    if (items.length > 0) {
+      lines.push(`${label} (${items.length}):`);
+      lines.push(...items);
+      lines.push('');
+    }
+  }
+
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => toast('Summary copied!')).catch(() => toast('Copy failed'));
+}
+
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function openSunoPage() {
+  const track = tracks[playQueue[queuePos]];
+  if (track) window.open(`https://suno.com/song/${track.id}`, '_blank');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS (desktop)
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.addEventListener('keydown', (e) => {
+  // Skip if typing in input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  // Only on player screen
+  if (!document.getElementById('player-screen').classList.contains('active')) return;
+
+  switch(e.key) {
+    case '1': rateTrack('TRASH'); break;
+    case '2': rateTrack('OK'); break;
+    case '3': rateTrack('GOOD'); break;
+    case '4': rateTrack('PERFECT'); break;
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case 'n': case 'N':
+      document.getElementById('note-input').focus();
+      break;
+    case 'ArrowRight':
+      nextTrack();
+      break;
+    case 'ArrowLeft':
+      prevTrack();
+      break;
+    case 's': case 'S':
+      toggleShuffle();
+      break;
+    case 'r': case 'R':
+      showResults();
+      break;
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function toast(msg, duration = 2000) {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function hideError(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>

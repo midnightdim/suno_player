@@ -1,0 +1,13 @@
+{
+  "name": "suno-player",
+  "version": "1.0.0",
+  "description": "Custom Suno tracks player for reviewing and rating generated music",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
