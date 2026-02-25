@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
-const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -16,20 +16,56 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function loadSessions() {
+function friendlySunoError(status) {
+  const map = {
+    401: 'Auth token expired or invalid. Please paste a fresh Bearer token from Suno.',
+    403: 'Access denied. Your token may have expired — try getting a new one from Suno.',
+    404: 'Not found. Check that the workspace/playlist ID is correct.',
+    429: 'Rate limited by Suno. Wait a moment and try again.',
+  };
+  if (map[status]) return map[status];
+  if (status >= 500) return `Suno servers are having issues (${status}). Try again later.`;
+  return `Suno API error: ${status}`;
+}
+
+function loadProjects() {
   try {
-    if (fs.existsSync(SESSIONS_FILE)) {
-      return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+    if (fs.existsSync(PROJECTS_FILE)) {
+      return JSON.parse(fs.readFileSync(PROJECTS_FILE, 'utf8'));
     }
   } catch (e) {
-    console.error('Failed to load sessions:', e.message);
+    console.error('Failed to load projects:', e.message);
   }
   return {};
 }
 
-function saveSessions(data) {
-  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
+function saveProjects(data) {
+  fs.writeFileSync(PROJECTS_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
+
+// Ensure at least one default project exists for backwards compatibility if they have old sessions
+function migrateLegacySessions() {
+  const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+  if (fs.existsSync(SESSIONS_FILE)) {
+    const legacy = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+    if (Object.keys(legacy).length > 0) {
+      const projects = loadProjects();
+      if (!projects['default']) {
+        projects['default'] = {
+          slug: 'default',
+          title: 'Legacy Sessions',
+          createdAt: new Date().toISOString(),
+          sessions: legacy
+        };
+        saveProjects(projects);
+      }
+      // Backup the old file just in case
+      fs.renameSync(SESSIONS_FILE, path.join(DATA_DIR, 'sessions.json.bak'));
+      console.log('Migrated legacy sessions to "default" project.');
+    }
+  }
+}
+migrateLegacySessions();
 
 async function fetchSunoClip(id, authObj = null) {
   const clip = {
@@ -101,7 +137,7 @@ async function fetchWorkspaceIds(workspaceId, authObj) {
       body: JSON.stringify(bodyObj),
     });
 
-    if (!res.ok) throw new Error(`Suno API error: ${res.status}`);
+    if (!res.ok) throw new Error(friendlySunoError(res.status));
 
     const data = await res.json();
     const clips = data?.clips ?? [];
@@ -133,11 +169,148 @@ async function fetchWorkspaceIds(workspaceId, authObj) {
   return allIds;
 }
 
+async function fetchPlaylistTracks(playlistId) {
+  const allTracks = [];
+  let page = 1;
+
+  while (true) {
+    const url = `https://studio-api.prod.suno.com/api/playlist/${playlistId}?page=${page}`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/147.0',
+      },
+    });
+
+    if (!res.ok) throw new Error(friendlySunoError(res.status));
+
+    const data = await res.json();
+    const clips = data?.playlist_clips ?? [];
+
+    if (!clips.length) break;
+
+    clips.forEach(pc => {
+      const c = pc.clip || pc;
+      if (c?.id) {
+        allTracks.push({
+          id: c.id,
+          title: c.title || null,
+          style: c.metadata?.tags || c.metadata?.prompt || null,
+          imageUrl: c.image_url || c.image_large_url || `https://cdn2.suno.ai/image_${c.id}.jpeg`,
+          audioUrl: c.audio_url || `https://cdn1.suno.ai/${c.id}.mp3`,
+          duration: c.metadata?.duration || null,
+        });
+      }
+    });
+
+    console.log(`🎵 Playlist page ${page} → ${clips.length} clips (total: ${allTracks.length})`);
+
+    if (!data.has_more && clips.length < 20) break;
+    page++;
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  return allTracks;
+}
+
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
-// Sessions CRUD
-app.get('/api/sessions', (req, res) => {
-  const sessions = loadSessions();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
+
+// Check admin password
+function checkAdmin(req) {
+  return req.headers['x-admin-password'] === ADMIN_PASSWORD;
+}
+
+// ─── Projects CRUD ───
+
+app.get('/api/projects', (req, res) => {
+  const projects = loadProjects();
+  const list = Object.values(projects).map(p => ({
+    slug: p.slug,
+    title: p.title,
+    description: p.description || '',
+    locked: !!p.passwordHash,
+    createdAt: p.createdAt,
+    sessionCount: p.sessions ? Object.keys(p.sessions).length : 0
+  }));
+  list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(list);
+});
+
+app.post('/api/projects', (req, res) => {
+  const { title, slug, password, description } = req.body;
+  if (!title || !slug) return res.status(400).json({ error: 'Title and slug required' });
+
+  const projects = loadProjects();
+  if (projects[slug]) return res.status(400).json({ error: 'Project slug already exists' });
+
+  projects[slug] = {
+    slug,
+    title,
+    description: description || '',
+    sessions: {},
+    createdAt: new Date().toISOString(),
+    ...(password ? { passwordHash: crypto.createHash('sha256').update(password).digest('hex') } : {}),
+  };
+  saveProjects(projects);
+  res.json({ ok: true, slug });
+});
+
+app.post('/api/projects/:slug/unlock', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  if (!project.passwordHash) return res.json({ ok: true });
+
+  const { password } = req.body;
+  if (checkAdmin(req)) return res.json({ ok: true, admin: true });
+
+  const hash = crypto.createHash('sha256').update(password || '').digest('hex');
+  if (hash !== project.passwordHash) return res.status(403).json({ error: 'Wrong password' });
+  res.json({ ok: true });
+});
+
+app.delete('/api/projects/:slug', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  // Require admin or correct password
+  let authorized = false;
+  if (checkAdmin(req)) {
+    authorized = true;
+  } else if (!project.passwordHash) {
+    authorized = true; // No password, anyone can delete (or you could restrict this)
+  } else {
+    const password = req.headers['x-project-password'];
+    if (password) {
+      const hash = crypto.createHash('sha256').update(password).digest('hex');
+      if (hash === project.passwordHash) authorized = true;
+    }
+  }
+
+  if (!authorized) return res.status(403).json({ error: 'Unauthorized to delete project' });
+
+  delete projects[req.params.slug];
+  saveProjects(projects);
+  res.json({ ok: true });
+});
+
+
+// ─── Sessions CRUD ───
+
+// Helper to reliably get a project's sessions map
+function getProjectSessions(project) {
+  if (!project.sessions) project.sessions = {};
+  return project.sessions;
+}
+
+app.get('/api/projects/:slug/sessions', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const sessions = getProjectSessions(project);
   const list = Object.entries(sessions).map(([id, s]) => ({
     id,
     name: s.name,
@@ -146,25 +319,38 @@ app.get('/api/sessions', (req, res) => {
     createdAt: s.createdAt,
     trackCount: s.tracks ? s.tracks.length : 0,
     ratedCount: s.ratings ? Object.values(s.ratings).filter(r => r.rating).length : 0,
+    workspaceId: s.workspaceId,
   }));
   list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   res.json(list);
 });
 
-app.get('/api/sessions/:id', (req, res) => {
-  const sessions = loadSessions();
+app.get('/api/projects/:slug/sessions/:id', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const sessions = getProjectSessions(project);
   const session = sessions[req.params.id];
   if (!session) return res.status(404).json({ error: 'Session not found' });
-  if (session.passwordHash) return res.status(403).json({ error: 'Password required', locked: true });
+
+  if (session.passwordHash && !checkAdmin(req)) {
+    return res.status(403).json({ error: 'Password required', locked: true });
+  }
   const { passwordHash, ...safe } = session;
   res.json(safe);
 });
 
-// Verify password and return session data
-app.post('/api/sessions/:id/unlock', (req, res) => {
-  const sessions = loadSessions();
+// Verify session password
+app.post('/api/projects/:slug/sessions/:id/unlock', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const sessions = getProjectSessions(project);
   const session = sessions[req.params.id];
   if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  if (checkAdmin(req)) return res.json({ ok: true, admin: true });
+
   if (!session.passwordHash) {
     const { passwordHash, ...safe } = session;
     return res.json(safe);
@@ -176,11 +362,15 @@ app.post('/api/sessions/:id/unlock', (req, res) => {
   res.json(safe);
 });
 
-app.post('/api/sessions', (req, res) => {
-  const { name, tracks, icon, password } = req.body;
+app.post('/api/projects/:slug/sessions', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const sessions = getProjectSessions(project);
+
+  const { name, tracks, icon, password, workspaceId } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
 
-  const sessions = loadSessions();
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   sessions[id] = {
     name,
@@ -188,26 +378,51 @@ app.post('/api/sessions', (req, res) => {
     tracks: tracks || [],
     ratings: {},
     createdAt: new Date().toISOString(),
+    ...(workspaceId ? { workspaceId } : {}),
     ...(password ? { passwordHash: crypto.createHash('sha256').update(password).digest('hex') } : {}),
   };
-  saveSessions(sessions);
+  saveProjects(projects);
   res.json({ ok: true, id });
 });
 
-app.delete('/api/sessions/:id', (req, res) => {
-  const sessions = loadSessions();
-  delete sessions[req.params.id];
-  saveSessions(sessions);
-  res.json({ ok: true });
-});
-
-// Update session (save tracks, ratings, etc.)
-app.put('/api/sessions/:id', (req, res) => {
-  const sessions = loadSessions();
+app.delete('/api/projects/:slug/sessions/:id', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const sessions = getProjectSessions(project);
   const session = sessions[req.params.id];
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
-  const { tracks, newTracks, ratings, name, icon } = req.body;
+  // Require admin or correct password if session is locked
+  let authorized = false;
+  if (checkAdmin(req)) {
+    authorized = true;
+  } else if (!session.passwordHash) {
+    authorized = true;
+  } else {
+    const password = req.headers['x-session-password'];
+    if (password) {
+      const hash = crypto.createHash('sha256').update(password).digest('hex');
+      if (hash === session.passwordHash) authorized = true;
+    }
+  }
+
+  if (!authorized) return res.status(403).json({ error: 'Unauthorized to delete session' });
+
+  delete sessions[req.params.id];
+  saveProjects(projects);
+  res.json({ ok: true });
+});
+
+app.put('/api/projects/:slug/sessions/:id', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const sessions = getProjectSessions(project);
+  const session = sessions[req.params.id];
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const { tracks, newTracks, ratings, name, icon, workspaceId } = req.body;
   if (tracks !== undefined) session.tracks = tracks;
   if (newTracks !== undefined && Array.isArray(newTracks)) {
     const existingIds = new Set(session.tracks.map(t => t.id));
@@ -220,15 +435,19 @@ app.put('/api/sessions/:id', (req, res) => {
   if (ratings !== undefined) session.ratings = ratings;
   if (name !== undefined) session.name = name;
   if (icon !== undefined) session.icon = icon;
+  if (workspaceId !== undefined) session.workspaceId = workspaceId;
   session.updatedAt = new Date().toISOString();
 
-  saveSessions(sessions);
+  saveProjects(projects);
   res.json({ ok: true });
+
 });
 
-// Save a single rating within a session
-app.post('/api/sessions/:id/rate', (req, res) => {
-  const sessions = loadSessions();
+app.post('/api/projects/:slug/sessions/:id/rate', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const sessions = getProjectSessions(project);
   const session = sessions[req.params.id];
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
@@ -246,8 +465,22 @@ app.post('/api/sessions/:id/rate', (req, res) => {
     updatedAt: new Date().toISOString(),
   };
 
-  saveSessions(sessions);
+  saveProjects(projects);
   res.json({ ok: true });
+});
+
+// Export a session as downloadable JSON
+app.get('/api/projects/:slug/sessions/:id/export', (req, res) => {
+  const projects = loadProjects();
+  const project = projects[req.params.slug];
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const sessions = getProjectSessions(project);
+  const session = sessions[req.params.id];
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  res.setHeader('Content-Disposition', `attachment; filename=suno-session-${req.params.id}.json`);
+  res.setHeader('Content-Type', 'application/json');
+  res.json(session);
 });
 
 // Fetch metadata for a batch of track IDs
@@ -275,8 +508,12 @@ app.post('/api/metadata', async (req, res) => {
 
 // Fetch all tracks from a Suno workspace
 app.post('/api/workspace', async (req, res) => {
-  const { workspaceId } = req.body;
+  let { workspaceId } = req.body;
   if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' });
+
+  const urlMatch = workspaceId.match(/(?:workspace\/|wid=)([a-f0-9-]{36})/i);
+  if (urlMatch) workspaceId = urlMatch[1];
+
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Auth token required. Set it first.' });
   const authObj = { authorization: authHeader, deviceId: req.headers['device-id'] };
@@ -290,15 +527,42 @@ app.post('/api/workspace', async (req, res) => {
   }
 });
 
-// Export a session as downloadable JSON
-app.get('/api/sessions/:id/export', (req, res) => {
-  const sessions = loadSessions();
-  const session = sessions[req.params.id];
-  if (!session) return res.status(404).json({ error: 'Session not found' });
+// Fetch all tracks from a Suno playlist (no auth needed)
+app.post('/api/playlist', async (req, res) => {
+  let { playlistId } = req.body;
+  if (!playlistId) return res.status(400).json({ error: 'playlistId is required' });
 
-  res.setHeader('Content-Disposition', `attachment; filename=suno-session-${req.params.id}.json`);
-  res.setHeader('Content-Type', 'application/json');
-  res.json(session);
+  // Extract UUID from full URL if needed
+  const urlMatch = playlistId.match(/playlist\/([a-f0-9-]{36})/i);
+  if (urlMatch) playlistId = urlMatch[1];
+
+  try {
+    const tracks = await fetchPlaylistTracks(playlistId);
+    res.json({ tracks, count: tracks.length });
+  } catch (e) {
+    console.error('Playlist fetch error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/download/:id', (req, res) => {
+  const url = `https://cdn1.suno.ai/${req.params.id}.mp3`;
+  https.get(url, (response) => {
+    if (response.statusCode >= 400) {
+      return res.status(response.statusCode).send('File not found or unreachable');
+    }
+    const title = req.query.title ? req.query.title.replace(/[^a-z0-9 \-_]/gi, '').trim() : req.params.id;
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="${title}.mp3"`);
+    response.pipe(res);
+  }).on('error', (e) => {
+    res.status(500).send(e.message);
+  });
+});
+
+app.get('/:slug', (req, res, next) => {
+  if (req.params.slug === 'api') return next();
+  res.sendFile(path.join(__dirname, 'public', 'project.html'));
 });
 
 // ─── Start ──────────────────────────────────────────────────────────────────

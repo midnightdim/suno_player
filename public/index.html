@@ -3,289 +3,92 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Suno Player</title>
-  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icons8-play-arcade-16.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icons8-play-arcade-32.png">
-  <link rel="icon" type="image/png" sizes="96x96" href="/icons/icons8-play-arcade-96.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Suno Player - Projects</title>
   <style>
-    *,
-    *::before,
-    *::after {
+    :root {
+      --bg: #121214;
+      --bg-card: #1c1c20;
+      --bg-glass: rgba(255, 255, 255, 0.05);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #ffffff;
+      --text-dim: #a0a0aa;
+      --accent: #7c5cff;
+      --accent-hover: #9b82ff;
+      --danger: #ff4d6a;
+      --radius: 16px;
+      --radius-sm: 12px;
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    * {
       box-sizing: border-box;
+    }
+
+    body,
+    html {
       margin: 0;
       padding: 0;
-    }
-
-    :root {
-      --bg: #0a0a0f;
-      --bg-card: rgba(255, 255, 255, 0.04);
-      --bg-glass: rgba(255, 255, 255, 0.06);
-      --border: rgba(255, 255, 255, 0.08);
-      --text: #e8e8ed;
-      --text-dim: #8888a0;
-      --accent: #7c5cff;
-      --accent-glow: rgba(124, 92, 255, 0.3);
-      --trash: #ff4d6a;
-      --ok: #f0a030;
-      --good: #30d98c;
-      --perfect: #7c5cff;
-      --radius: 16px;
-      --radius-sm: 10px;
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
-    }
-
-    html,
-    body {
-      height: 100%;
-      width: 100%;
-      font-family: 'Inter', -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
+      font-family: var(--font);
+      height: 100vh;
       overflow: hidden;
-      -webkit-tap-highlight-color: transparent;
     }
 
-    .screen {
-      position: absolute;
-      inset: 0;
-      display: none;
-      flex-direction: column;
-      padding: 20px;
-      padding-bottom: calc(20px + var(--safe-bottom));
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .screen.active {
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      height: 100%;
       display: flex;
+      flex-direction: column;
+      padding: 16px;
     }
 
-    /* ── Home Screen ─────────────────────────────────── */
-    #home-screen {
-      gap: 20px;
-      background: radial-gradient(ellipse at 50% 0%, rgba(124, 92, 255, 0.10) 0%, transparent 60%);
-    }
-
-    .home-header {
+    .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      margin-bottom: 24px;
+      padding-top: 10px;
     }
 
-    .home-header h1 {
+    .header h1 {
+      margin: 0;
       font-size: 24px;
       font-weight: 700;
     }
 
-    .session-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .session-card {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 16px;
-      border-radius: var(--radius);
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .session-card:hover {
-      background: var(--bg-glass);
-    }
-
-    .session-icon {
-      font-size: 28px;
-      flex-shrink: 0;
-    }
-
-    .session-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .session-info .name {
-      font-size: 15px;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .session-info .meta {
-      font-size: 12px;
-      color: var(--text-dim);
-      margin-top: 3px;
-    }
-
-    .session-delete {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      cursor: pointer;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-    }
-
-    .session-delete:hover {
-      background: rgba(255, 77, 106, 0.15);
-      border-color: var(--trash);
-      color: var(--trash);
-    }
-
-    .new-session-form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding: 16px;
-      border-radius: var(--radius);
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-    }
-
-    .new-session-form h3 {
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    /* ── Setup Screen ────────────────────────────────── */
-    #setup-screen {
-      justify-content: center;
-      align-items: center;
-      gap: 28px;
-      background: radial-gradient(ellipse at 50% 0%, rgba(124, 92, 255, 0.12) 0%, transparent 60%);
-    }
-
-    .setup-step {
-      display: none;
-      width: 100%;
-      max-width: 420px;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .setup-step.active {
-      display: flex;
-    }
-
-    .logo {
-      font-size: 48px;
-      margin-bottom: 4px;
-    }
-
-    .app-title {
-      font-size: 26px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-    }
-
-    .app-subtitle {
-      font-size: 14px;
-      color: var(--text-dim);
-      max-width: 300px;
-      text-align: center;
-      line-height: 1.5;
-    }
-
-    .input-group {
-      width: 100%;
-      max-width: 420px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .input-group label {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--text-dim);
-    }
-
-    .input-group input,
-    .input-group textarea {
-      width: 100%;
-      padding: 14px 16px;
-      background: var(--bg-glass);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      color: var(--text);
-      font-family: inherit;
-      font-size: 14px;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-
-    .input-group input:focus,
-    .input-group textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
-    }
-
-    .input-group textarea {
-      min-height: 120px;
-      resize: vertical;
-      font-family: 'Courier New', monospace;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
     .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 14px 28px;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-family: inherit;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      user-select: none;
-      -webkit-user-select: none;
+    }
+
+    .btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
     }
 
     .btn:active {
-      transform: scale(0.96);
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 4px 20px var(--accent-glow);
-    }
-
-    .btn-primary:hover {
-      background: #6a4ae8;
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
+      transform: translateY(1px);
     }
 
     .btn-secondary {
       background: var(--bg-glass);
-      color: var(--text);
       border: 1px solid var(--border);
+      color: var(--text);
     }
 
     .btn-secondary:hover {
@@ -295,713 +98,177 @@
     .btn-sm {
       padding: 8px 16px;
       font-size: 13px;
-      border-radius: 8px;
     }
 
-    .btn-danger {
-      background: rgba(255, 77, 106, 0.15);
-      color: var(--trash);
-      border: 1px solid rgba(255, 77, 106, 0.3);
-    }
-
-    .loading-spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    .loading-text {
-      color: var(--text-dim);
-      font-size: 14px;
-      text-align: center;
-    }
-
-    .error-text {
-      color: var(--trash);
-      font-size: 13px;
-      text-align: center;
-    }
-
-    /* ── Player Screen ───────────────────────────────── */
-    #player-screen {
-      gap: 0;
-      padding: 0;
-      overflow: hidden;
-    }
-
-    .player-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 20px 8px;
-      flex-shrink: 0;
-    }
-
-    .player-header .counter {
-      font-size: 13px;
-      color: var(--text-dim);
-      font-weight: 500;
-    }
-
-    .player-header .controls {
-      display: flex;
-      gap: 8px;
-    }
-
-    .icon-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--bg-glass);
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      cursor: pointer;
-      font-size: 16px;
-      transition: all 0.2s;
-    }
-
-    .icon-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--text);
-    }
-
-    .icon-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-
-    .album-art-container {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 12px 30px;
-      min-height: 0;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .album-art-bg {
-      position: absolute;
-      inset: -40px;
-      z-index: 0;
-      background-size: cover;
-      background-position: center;
-      filter: blur(60px) brightness(0.3) saturate(1.4);
-      opacity: 0.6;
-      transition: background-image 0.8s;
-    }
-
-    .album-art {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      max-width: 340px;
-      aspect-ratio: 1;
-      border-radius: var(--radius);
-      overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-      background: var(--bg-card);
-      transition: opacity 0.3s;
-    }
-
-    .album-art img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .album-art .fallback {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 72px;
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
-    }
-
-    .track-info {
-      padding: 12px 24px 4px;
-      text-align: center;
-      flex-shrink: 0;
-    }
-
-    .track-title {
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
-    }
-
-    .track-style {
-      font-size: 12px;
-      color: var(--text-dim);
-      margin-top: 4px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .audio-controls {
-      padding: 8px 24px 4px;
-      flex-shrink: 0;
-    }
-
-    .progress-bar-container {
-      width: 100%;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      position: relative;
-    }
-
-    .progress-bar-track {
-      width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .progress-bar-fill {
-      height: 100%;
-      background: var(--accent);
-      border-radius: 2px;
-      width: 0%;
-      transition: width 0.1s linear;
-    }
-
-    .progress-bar-container:active .progress-bar-track {
-      height: 6px;
-    }
-
-    .time-display {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: var(--text-dim);
-      font-variant-numeric: tabular-nums;
-      padding: 0 2px;
-    }
-
-    .playback-controls {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 24px;
-      padding: 4px 24px;
-      flex-shrink: 0;
-    }
-
-    .play-btn {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      background: var(--text);
-      color: var(--bg);
-      border: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      cursor: pointer;
-      transition: transform 0.15s;
-    }
-
-    .play-btn:active {
-      transform: scale(0.92);
-    }
-
-    .skip-btn {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: transparent;
-      border: none;
-      color: var(--text);
-      font-size: 22px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0.7;
-      transition: opacity 0.2s;
-    }
-
-    .skip-btn:hover {
-      opacity: 1;
-    }
-
-    .rating-section {
-      padding: 10px 20px 2px;
-      flex-shrink: 0;
-    }
-
-    .rating-buttons {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 6px;
-    }
-
-    .rate-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 3px;
-      padding: 10px 4px;
-      border-radius: var(--radius-sm);
-      background: var(--bg-glass);
-      border: 1.5px solid var(--border);
-      color: var(--text);
-      cursor: pointer;
-      font-family: inherit;
-      transition: all 0.2s;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    .rate-btn:active {
-      transform: scale(0.94);
-    }
-
-    .rate-btn .emoji {
-      font-size: 20px;
-    }
-
-    .rate-btn .label {
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .rate-btn[data-rating="TRASH"] {
-      border-color: rgba(255, 77, 106, 0.3);
-    }
-
-    .rate-btn[data-rating="TRASH"]:hover,
-    .rate-btn[data-rating="TRASH"].selected {
-      background: rgba(255, 77, 106, 0.15);
-      border-color: var(--trash);
-    }
-
-    .rate-btn[data-rating="OK"] {
-      border-color: rgba(240, 160, 48, 0.3);
-    }
-
-    .rate-btn[data-rating="OK"]:hover,
-    .rate-btn[data-rating="OK"].selected {
-      background: rgba(240, 160, 48, 0.15);
-      border-color: var(--ok);
-    }
-
-    .rate-btn[data-rating="GOOD"] {
-      border-color: rgba(48, 217, 140, 0.3);
-    }
-
-    .rate-btn[data-rating="GOOD"]:hover,
-    .rate-btn[data-rating="GOOD"].selected {
-      background: rgba(48, 217, 140, 0.15);
-      border-color: var(--good);
-    }
-
-    .rate-btn[data-rating="PERFECT"] {
-      border-color: rgba(124, 92, 255, 0.3);
-    }
-
-    .rate-btn[data-rating="PERFECT"]:hover,
-    .rate-btn[data-rating="PERFECT"].selected {
-      background: rgba(124, 92, 255, 0.15);
-      border-color: var(--perfect);
-    }
-
-    .rate-btn[data-rating="CLEAR"] {
-      border-color: rgba(255, 255, 255, 0.15);
-    }
-
-    .rate-btn[data-rating="CLEAR"]:hover,
-    .rate-btn[data-rating="CLEAR"].selected {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: var(--text-dim);
-    }
-
-    .note-section {
-      padding: 0 20px 6px;
-      flex-shrink: 0;
-    }
-
-    .note-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .note-input {
-      flex: 1;
-      padding: 10px 14px;
-      background: var(--bg-glass);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-family: inherit;
-      font-size: 13px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    .note-input:focus {
-      border-color: var(--accent);
-    }
-
-    .note-input::placeholder {
-      color: var(--text-dim);
-    }
-
-    .note-display {
-      padding: 0 20px 4px;
-      flex-shrink: 0;
-    }
-
-    .note-display .note-text {
-      font-size: 12px;
-      color: var(--ok);
-      font-style: italic;
-      text-align: center;
-    }
-
-    .bottom-bar {
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      padding: 6px 20px calc(6px + var(--safe-bottom));
-      flex-shrink: 0;
-    }
-
-    /* ── Results Screen ───────────────────────────────── */
-    #results-screen {
-      gap: 16px;
-      background: var(--bg);
-    }
-
-    .results-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-    }
-
-    .results-header h2 {
-      font-size: 22px;
-      font-weight: 700;
-    }
-
-    .filter-tabs {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      flex-shrink: 0;
-    }
-
-    .filter-tab {
-      padding: 7px 14px;
-      border-radius: 20px;
-      background: var(--bg-glass);
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-      transition: all 0.2s;
-    }
-
-    .filter-tab.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-
-    .results-list {
+    .project-list {
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      -webkit-overflow-scrolling: touch;
+      gap: 12px;
+      padding-bottom: 24px;
     }
 
-    .result-card {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      border-radius: var(--radius-sm);
+    .project-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      transition: background 0.2s;
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      color: inherit;
     }
 
-    .result-card:hover {
-      background: var(--bg-glass);
+    .project-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
     }
 
-    .result-thumb {
+    .project-icon {
       width: 48px;
       height: 48px;
-      border-radius: 8px;
-      overflow: hidden;
-      flex-shrink: 0;
+      border-radius: 12px;
       background: var(--bg-glass);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
     }
 
-    .result-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .result-info {
+    .project-info {
       flex: 1;
       min-width: 0;
     }
 
-    .result-info .title {
-      font-size: 14px;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .result-info .meta {
-      font-size: 11px;
-      color: var(--text-dim);
-      margin-top: 2px;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      cursor: pointer;
-    }
-
-    .result-info .meta.expanded {
-      -webkit-line-clamp: unset;
-      line-clamp: unset;
-    }
-
-    .result-info .note {
-      font-size: 11px;
-      color: var(--ok);
-      font-style: italic;
-      margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .result-badge {
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      flex-shrink: 0;
-    }
-
-    .badge-TRASH {
-      background: rgba(255, 77, 106, 0.15);
-      color: var(--trash);
-    }
-
-    .badge-OK {
-      background: rgba(240, 160, 48, 0.15);
-      color: var(--ok);
-    }
-
-    .badge-GOOD {
-      background: rgba(48, 217, 140, 0.15);
-      color: var(--good);
-    }
-
-    .badge-PERFECT {
-      background: rgba(124, 92, 255, 0.15);
-      color: var(--perfect);
-    }
-
-    .result-actions {
+    .project-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
       display: flex;
-      gap: 4px;
-      flex-shrink: 0;
+      align-items: center;
+      gap: 8px;
     }
 
-    .result-actions button {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: var(--bg-glass);
-      border: 1px solid var(--border);
+    .project-desc {
+      font-size: 13px;
       color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-meta {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    .action-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 16px;
       cursor: pointer;
-      font-size: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: all 0.2s;
     }
 
-    .result-actions button:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: var(--text);
-    }
-
-    .results-footer {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      flex-shrink: 0;
-      padding-top: 8px;
-      border-top: 1px solid var(--border);
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--danger);
     }
 
     .empty-state {
-      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      height: 100%;
       color: var(--text-dim);
-    }
-
-    .empty-state .icon {
-      font-size: 48px;
-    }
-
-    .empty-state p {
-      font-size: 14px;
-    }
-
-    /* ── Tabs row ──────────────────────────────────── */
-    .tab-row {
-      display: flex;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    .tab-row .btn.active {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-
-    /* ── Icon Picker ────────────────────────────────── */
-    .icon-picker {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-
-    .icon-picker button {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      background: var(--bg-glass);
-      border: 2px solid var(--border);
-      font-size: 20px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .icon-picker button:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .icon-picker button.selected {
-      border-color: var(--accent);
-      background: rgba(124, 92, 255, 0.15);
-    }
-
-    .icon-picker .custom-icon-input {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      background: var(--bg-glass);
-      border: 2px dashed var(--border);
-      font-size: 20px;
-      color: var(--text);
       text-align: center;
-      outline: none;
-      transition: all 0.2s;
-      padding: 0;
+      gap: 16px;
     }
 
-    .icon-picker .custom-icon-input:focus,
-    .icon-picker .custom-icon-input.selected {
-      border: 2px solid var(--accent);
-      background: rgba(124, 92, 255, 0.15);
-      border-style: solid;
-    }
-
-    .icon-picker .custom-icon-input::placeholder {
-      color: var(--text-dim);
-    }
-
-    .lock-badge {
-      font-size: 14px;
-      flex-shrink: 0;
-      margin-right: 4px;
-    }
-
-    /* ── Password Modal ─────────────────────────────── */
+    /* Modal */
     .modal-overlay {
       position: fixed;
       inset: 0;
       z-index: 50;
       background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
-      backdrop-filter: blur(4px);
     }
 
     .modal-box {
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 28px;
-      max-width: 360px;
+      padding: 24px;
+      max-width: 400px;
       width: 100%;
       display: flex;
       flex-direction: column;
       gap: 16px;
-      align-items: center;
     }
 
-    /* ── Toast ────────────────────────────────────────── */
+    .modal-box h3 {
+      margin: 0;
+      text-align: center;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .input-group input {
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    .input-group input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .error-text {
+      color: var(--danger);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Toast */
     .toast-container {
       position: fixed;
       top: 16px;
@@ -1019,17 +286,10 @@
       border-radius: 10px;
       background: rgba(40, 40, 60, 0.95);
       border: 1px solid var(--border);
-      color: var(--text);
+      color: #fff;
       font-size: 13px;
       font-weight: 500;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       animation: toast-in 0.3s ease-out;
-      pointer-events: auto;
-    }
-
-    .toast.out {
-      animation: toast-out 0.3s ease-in forwards;
     }
 
     @keyframes toast-in {
@@ -1038,48 +298,6 @@
         transform: translateY(-12px);
       }
     }
-
-    @keyframes toast-out {
-      to {
-        opacity: 0;
-        transform: translateY(-12px);
-      }
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    @media (min-width:640px) {
-      .album-art {
-        max-width: 300px;
-      }
-
-      .rating-section,
-      .note-section,
-      .audio-controls,
-      .playback-controls,
-      .bottom-bar,
-      .note-display {
-        max-width: 480px;
-        margin-left: auto;
-        margin-right: auto;
-        width: 100%;
-      }
-    }
-
-    ::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 2px;
-    }
   </style>
 </head>
 
@@ -1087,813 +305,181 @@
 
   <div class="toast-container" id="toast-container"></div>
 
-  <!-- Edit Session Modal -->
-  <div class="modal-overlay hidden" id="edit-session-modal">
-    <div class="modal-box" style="max-width:400px;width:100%;align-items:stretch;">
-      <h3 style="text-align:center;margin-top:0;">Edit Session</h3>
-      <div class="input-group"><label>Session Name</label><input id="edit-session-name"></div>
-      <div class="input-group"><label>Icon</label>
-        <div class="icon-picker" id="edit-icon-picker"></div>
-      </div>
-      <div style="margin-top:10px;font-weight:600;">Import More Tracks</div>
-      <div class="tab-row">
-        <button class="btn btn-secondary btn-sm active" id="edit-tab-ids" onclick="switchEditTab('ids')">Paste
-          IDs</button>
-        <button class="btn btn-secondary btn-sm" id="edit-tab-workspace" onclick="switchEditTab('workspace')">From
-          Workspace</button>
-      </div>
-      <div id="edit-tab-ids-content">
-        <div class="input-group"><label>Track IDs</label><textarea id="edit-track-ids"
-            placeholder="Paste additional IDs" style="min-height:60px;"></textarea></div>
-      </div>
-      <div id="edit-tab-workspace-content" class="hidden">
-        <div class="input-group"><label>Workspace ID</label><input id="edit-workspace-id"
-            placeholder="bdec811e-d376-409e-a12c-33261e3d7b10"></div>
-      </div>
-      <div id="edit-error" class="error-text hidden"></div>
-      <div id="edit-loading" class="hidden" style="display:flex;gap:10px;align-items:center;">Fetching...</div>
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <button class="btn btn-secondary" style="flex:1;" onclick="closeEditModal()">Cancel</button>
-        <button class="btn btn-primary" style="flex:1;" id="edit-save-btn" onclick="saveEditedSession()">Save</button>
-      </div>
+  <div class="container">
+    <div class="header">
+      <h1>Suno Projects</h1>
+      <button class="btn btn-sm" onclick="openNewModal()">➕ New Project</button>
+    </div>
+
+    <div class="project-list" id="project-list">
+      <div class="empty-state">Loading projects...</div>
     </div>
   </div>
 
-  <!-- ═══ HOME SCREEN ═══ -->
-  <div class="screen active" id="home-screen">
-    <div class="home-header">
-      <h1>🎵 Suno Player</h1>
-      <button class="btn btn-secondary btn-sm" onclick="showAuthSetup()">🔑 Auth</button>
-    </div>
-    <div id="auth-status" style="font-size:12px;color:var(--text-dim);"></div>
-    <div class="session-list" id="session-list"></div>
-    <div class="new-session-form">
-      <h3>New Session</h3>
-      <div class="input-group"><label>Session Name</label><input id="new-session-name"
-          placeholder="e.g. Covers Batch 3"></div>
-      <div class="input-group"><label>Icon</label>
-        <div class="icon-picker" id="icon-picker"></div>
+  <!-- New Project Modal -->
+  <div class="modal-overlay hidden" id="new-modal">
+    <div class="modal-box">
+      <h3>New Project</h3>
+      <div class="input-group">
+        <label>Title</label>
+        <input id="new-title" placeholder="e.g. Synthwave Covers" oninput="updateSlugHint()">
       </div>
-      <div class="input-group"><label>Password (optional)</label><input type="password" id="new-session-password"
-          placeholder="Leave empty for no protection"></div>
-      <div class="tab-row">
-        <button class="btn btn-secondary btn-sm active" id="tab-ids" onclick="switchNewTab('ids')">Paste IDs</button>
-        <button class="btn btn-secondary btn-sm" id="tab-workspace" onclick="switchNewTab('workspace')">From
-          Workspace</button>
+      <div class="input-group">
+        <label>URL Slug</label>
+        <input id="new-slug" placeholder="synthwave-covers">
       </div>
-      <div id="new-tab-ids">
-        <div class="input-group"><label>Track IDs</label><textarea id="new-track-ids"
-            placeholder="Paste IDs, one per line or comma-separated"></textarea></div>
+      <div class="input-group">
+        <label>Description (Optional)</label>
+        <input id="new-desc" placeholder="A brief note about this project">
       </div>
-      <div id="new-tab-workspace" class="hidden">
-        <div class="input-group"><label>Workspace ID</label><input id="new-workspace-id"
-            placeholder="bdec811e-d376-409e-a12c-33261e3d7b10"></div>
-        <div style="font-size:11px;color:var(--text-dim);margin-top:-4px;">Find this in the Suno URL when viewing a
-          workspace</div>
+      <div class="input-group">
+        <label>Password (Optional)</label>
+        <input type="password" id="new-password" placeholder="Lock the entire project">
       </div>
-      <button class="btn btn-primary" id="create-session-btn" onclick="createSession()">Create Session</button>
-      <div id="create-error" class="error-text hidden"></div>
-      <div id="create-loading" class="hidden" style="display:flex;gap:10px;align-items:center;">
-        <div class="loading-spinner" style="width:24px;height:24px;border-width:2px;"></div><span class="loading-text"
-          id="create-loading-text">Fetching tracks...</span>
+      <div id="new-error" class="error-text hidden"></div>
+
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeNewModal()">Cancel</button>
+        <button class="btn" style="flex:2;" onclick="createProject()">Create Project</button>
       </div>
     </div>
   </div>
-
-  <!-- ═══ AUTH SETUP ═══ -->
-  <div class="screen" id="auth-screen">
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:24px;">
-      <div class="logo">🔑</div>
-      <div class="app-title">Auth Setup</div>
-      <div class="app-subtitle">Paste your Suno Bearer token to enable metadata fetching and workspace import.</div>
-      <div class="input-group" style="max-width:420px;">
-        <label>Authorization Token</label>
-        <input type="password" id="auth-token" placeholder="Bearer eyJhbGciOi..." autocomplete="off">
-      </div>
-      <button class="btn btn-primary" onclick="submitAuth()">Save Token</button>
-      <button class="btn btn-secondary btn-sm" onclick="switchScreen('home-screen'); refreshHome()">← Back</button>
-      <div id="auth-error" class="error-text hidden"></div>
-    </div>
-  </div>
-
-  <!-- ═══ PLAYER SCREEN ═══ -->
-  <div class="screen" id="player-screen">
-    <div class="player-header">
-      <span class="counter" id="track-counter">1 / 32</span>
-      <div class="controls">
-        <button class="icon-btn" id="home-btn" onclick="goHome()" title="Home">🏠</button>
-        <button class="icon-btn active" id="shuffle-btn" onclick="toggleShuffle()" title="Shuffle">🔀</button>
-        <button class="icon-btn active" id="auto-advance-btn" onclick="toggleAutoAdvance()"
-          title="Auto-advance">⏭️</button>
-        <button class="icon-btn" id="results-btn" onclick="showResults()" title="Results">📊</button>
-      </div>
-    </div>
-    <div class="album-art-container">
-      <div class="album-art-bg" id="art-bg"></div>
-      <div class="album-art" id="album-art">
-        <img id="art-img" src="" alt=""
-          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-        <div class="fallback" style="display:none;">🎶</div>
-      </div>
-    </div>
-    <div class="track-info">
-      <div class="track-title" id="track-title">Loading...</div>
-      <div class="track-style" id="track-style"></div>
-    </div>
-    <div class="note-display" id="note-display-area">
-      <div class="note-text" id="note-display-text"></div>
-    </div>
-    <div class="audio-controls">
-      <div class="progress-bar-container" id="progress-container">
-        <div class="progress-bar-track">
-          <div class="progress-bar-fill" id="progress-fill"></div>
-        </div>
-      </div>
-      <div class="time-display"><span id="time-current">0:00</span><span id="time-duration">0:00</span></div>
-    </div>
-    <div class="playback-controls">
-      <button class="skip-btn" onclick="prevTrack()">⏮</button>
-      <button class="play-btn" id="play-btn" onclick="togglePlay()">▶</button>
-      <button class="skip-btn" onclick="nextTrack()">⏭</button>
-    </div>
-    <div class="rating-section">
-      <div class="rating-buttons">
-        <button class="rate-btn" data-rating="TRASH" onclick="rateTrack('TRASH')"><span class="emoji">🗑️</span><span
-            class="label">Trash</span></button>
-        <button class="rate-btn" data-rating="OK" onclick="rateTrack('OK')"><span class="emoji">👌</span><span
-            class="label">OK</span></button>
-        <button class="rate-btn" data-rating="GOOD" onclick="rateTrack('GOOD')"><span class="emoji">👍</span><span
-            class="label">Good</span></button>
-        <button class="rate-btn" data-rating="PERFECT" onclick="rateTrack('PERFECT')"><span class="emoji">⭐</span><span
-            class="label">Perfect</span></button>
-        <button class="rate-btn" data-rating="CLEAR" onclick="rateTrack(null)"><span class="emoji">↩️</span><span
-            class="label">Clear</span></button>
-      </div>
-    </div>
-    <div class="note-section">
-      <div class="note-row">
-        <input class="note-input" id="note-input" type="text" placeholder="Add a note..." maxlength="200">
-        <button class="btn btn-secondary btn-sm" onclick="saveNote()">💾</button>
-      </div>
-    </div>
-    <div class="bottom-bar">
-      <button class="btn btn-secondary btn-sm" onclick="openSunoPage()">🔗 Suno</button>
-    </div>
-  </div>
-
-  <!-- ═══ RESULTS SCREEN ═══ -->
-  <div class="screen" id="results-screen">
-    <div class="results-header">
-      <h2>Ratings</h2>
-      <div style="display:flex;gap:8px;">
-        <button class="icon-btn" onclick="showPlayer()" title="Back to player">🎵</button>
-        <button class="icon-btn" onclick="goHome()" title="Home">🏠</button>
-      </div>
-    </div>
-    <div class="filter-tabs" id="filter-tabs">
-      <button class="filter-tab active" data-filter="ALL" onclick="filterResults('ALL')">All</button>
-      <button class="filter-tab" data-filter="PERFECT" onclick="filterResults('PERFECT')">⭐ Perfect</button>
-      <button class="filter-tab" data-filter="GOOD" onclick="filterResults('GOOD')">👍 Good</button>
-      <button class="filter-tab" data-filter="OK" onclick="filterResults('OK')">👌 OK</button>
-      <button class="filter-tab" data-filter="TRASH" onclick="filterResults('TRASH')">🗑️ Trash</button>
-      <button class="filter-tab" data-filter="UNRATED" onclick="filterResults('UNRATED')">— Unrated</button>
-    </div>
-    <div class="results-list" id="results-list"></div>
-    <div class="results-footer">
-      <button class="btn btn-secondary btn-sm" onclick="exportRatings()">📥 Export JSON</button>
-      <button class="btn btn-secondary btn-sm" onclick="downloadPerfect()">⭐ Download Perfect</button>
-      <button class="btn btn-secondary btn-sm" onclick="copyRatingSummary()">📋 Copy Summary</button>
-    </div>
-  </div>
-
-  <audio id="audio" preload="auto"></audio>
 
   <script>
-    // ═══ STATE ═══════════════════════════════════════════
-    let currentSessionId = null;
-    let sessionData = null;  // { name, tracks:[], ratings:{}, createdAt }
-    let playQueue = [];
-    let queuePos = -1;
-    let shuffleOn = true;
-    let autoAdvance = true;
-    let currentFilter = 'ALL';
-    let newTabMode = 'ids';
-    let selectedIcon = '🎧';
-    let editTabMode = 'ids';
-    let editSelectedIcon = '🎧';
-    let editingSessionId = null;
-    const SESSION_ICONS = ['🎧', '🎵', '🎸', '🎹', '🥁', '🎤', '🎺', '🎻', '🎶', '🎼', '🔥', '💎', '🌟', '🌙', '🚀', '💜'];
-
-    const audio = document.getElementById('audio');
-
-    // ═══ HELPERS ═════════════════════════════════════════
-    function switchScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
-    function toast(msg, dur = 2000) { const c = document.getElementById('toast-container'), e = document.createElement('div'); e.className = 'toast'; e.textContent = msg; c.appendChild(e); setTimeout(() => { e.classList.add('out'); setTimeout(() => e.remove(), 300); }, dur); }
-    function showError(id, msg) { const e = document.getElementById(id); e.textContent = msg; e.classList.remove('hidden'); }
-    function hideError(id) { document.getElementById(id).classList.add('hidden'); }
+    function toast(msg) { const c = document.getElementById('toast-container'), e = document.createElement('div'); e.className = 'toast'; e.textContent = msg; c.appendChild(e); setTimeout(() => e.remove(), 2500); }
     function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-    function formatTime(s) { if (!s || isNaN(s)) return '0:00'; return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`; }
 
-    // ═══ HOME SCREEN ════════════════════════════════════
-    async function refreshHome() {
-      // Check auth
-      const hasToken = !!localStorage.getItem('sunoAuthToken');
-      document.getElementById('auth-status').textContent = hasToken ? '✅ Auth token set' : '⚠️ No auth token — workspace import and metadata disabled';
-
-      // Load sessions
+    async function loadProjects() {
       try {
-        const r = await fetch('/api/sessions');
-        const sessions = await r.json();
-        const list = document.getElementById('session-list');
-        if (sessions.length === 0) {
-          list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>No sessions yet. Create one below.</p></div>';
+        const r = await fetch('/api/projects');
+        const projects = await r.json();
+        const list = document.getElementById('project-list');
+
+        if (projects.length === 0) {
+          list.innerHTML = '<div class="empty-state"><div style="font-size:48px;">📂</div><p>No projects yet. Create one to get started.</p></div>';
           return;
         }
-        list.innerHTML = sessions.map(s => `
-      <div class="session-card" onclick="openSession('${s.id}')">
-        <div class="session-icon">${s.icon || '🎧'}</div>
-        <div class="session-info">
-          <div class="name">${s.locked ? '<span class="lock-badge">🔒</span>' : ''}${escHtml(s.name)}</div>
-          <div class="meta">${s.trackCount} tracks · ${s.ratedCount} rated · ${new Date(s.createdAt).toLocaleDateString()}</div>
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="session-delete" style="background:var(--bg-glass);" onclick="event.stopPropagation();openEditModal('${s.id}','${escHtml(s.name)}','${s.icon || '🎧'}')" title="Edit">✏️</button>
-          <button class="session-delete" onclick="event.stopPropagation();deleteSession('${s.id}','${escHtml(s.name)}')" title="Delete">🗑️</button>
-        </div>
-      </div>
-    `).join('');
+
+        list.innerHTML = projects.map(p => `
+          <a class="project-card" href="/${p.slug}">
+            <div class="project-icon">📁</div>
+            <div class="project-info">
+              <div class="project-title">
+                ${p.locked ? '🔒' : ''} ${escHtml(p.title)}
+              </div>
+              <div class="project-desc">${escHtml(p.description || 'No description')}</div>
+              <div class="project-meta">${p.sessionCount} session(s) · ${new Date(p.createdAt).toLocaleDateString()}</div>
+            </div>
+            <button class="action-btn" onclick="event.preventDefault(); deleteProject('${p.slug}', '${escHtml(p.title)}')">🗑️</button>
+          </a>
+        `).join('');
       } catch (e) {
-        document.getElementById('session-list').innerHTML = '<div class="error-text">Failed to load sessions</div>';
+        document.getElementById('project-list').innerHTML = '<div class="error-text" style="text-align:center;margin-top:40px;">Failed to load projects</div>';
       }
     }
 
-    async function deleteSession(id, name) {
-      if (!confirm(`Delete session "${name}"?`)) return;
-      await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
-      toast('Session deleted');
-      refreshHome();
-    }
+    async function deleteProject(slug, title) {
+      if (!confirm(`Delete project "${title}" and ALL its sessions?`)) return;
 
-    function switchNewTab(tab) {
-      newTabMode = tab;
-      document.getElementById('new-tab-ids').classList.toggle('hidden', tab !== 'ids');
-      document.getElementById('new-tab-workspace').classList.toggle('hidden', tab !== 'workspace');
-      document.getElementById('tab-ids').classList.toggle('active', tab === 'ids');
-      document.getElementById('tab-workspace').classList.toggle('active', tab === 'workspace');
-    }
+      let pwHeader = '';
+      // We don't have a direct "check if locked before delete" endpoint, 
+      // but if the project requires a password, it'll return 403 on delete without it.
+      // Easiest is to try delete, if 403, prompt password and retry.
 
-    async function createSession() {
-      const name = document.getElementById('new-session-name').value.trim();
-      if (!name) { showError('create-error', 'Enter a session name'); return; }
-      hideError('create-error');
+      let r = await fetch(`/api/projects/${slug}`, { method: 'DELETE' });
 
-      let tracks = [];
+      if (r.status === 403) {
+        const pw = prompt('This project is locked. Enter password (or admin password) to delete:');
+        if (!pw) return;
 
-      if (newTabMode === 'ids') {
-        const raw = document.getElementById('new-track-ids').value.trim();
-        if (!raw) { showError('create-error', 'Paste at least one track ID'); return; }
-        let ids = raw.replace(/[\[\]"']/g, '').split(/[\n,\s]+/).map(s => s.trim()).filter(s => /^[a-f0-9-]{36}$/i.test(s));
-        ids = [...new Set(ids)];
-        if (ids.length === 0) { showError('create-error', 'No valid UUIDs found'); return; }
+        const headers = { 'x-project-password': pw, 'x-admin-password': pw };
+        r = await fetch(`/api/projects/${slug}`, { method: 'DELETE', headers });
+      }
 
-        // Show loading
-        document.getElementById('create-session-btn').classList.add('hidden');
-        document.getElementById('create-loading').classList.remove('hidden');
-        document.getElementById('create-loading-text').textContent = `Fetching metadata for ${ids.length} tracks...`;
-
-        try {
-          const auth = localStorage.getItem('sunoAuthToken') || '';
-          const r = await fetch('/api/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ ids }) });
-          const d = await r.json();
-          if (!r.ok) throw new Error(d.error);
-          tracks = d.tracks;
-        } catch (e) {
-          showError('create-error', e.message);
-          document.getElementById('create-session-btn').classList.remove('hidden');
-          document.getElementById('create-loading').classList.add('hidden');
-          return;
-        }
+      if (r.ok) {
+        toast('Project deleted');
+        loadProjects();
       } else {
-        const wid = document.getElementById('new-workspace-id').value.trim();
-        if (!wid) { showError('create-error', 'Enter a workspace ID'); return; }
-
-        document.getElementById('create-session-btn').classList.add('hidden');
-        document.getElementById('create-loading').classList.remove('hidden');
-        document.getElementById('create-loading-text').textContent = 'Fetching tracks from workspace...';
-
-        try {
-          const auth = localStorage.getItem('sunoAuthToken') || '';
-          const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ workspaceId: wid }) });
-          const d = await r.json();
-          if (!r.ok) throw new Error(d.error);
-          tracks = d.tracks;
-          document.getElementById('create-loading-text').textContent = `Found ${tracks.length} tracks!`;
-        } catch (e) {
-          showError('create-error', e.message);
-          document.getElementById('create-session-btn').classList.remove('hidden');
-          document.getElementById('create-loading').classList.add('hidden');
-          return;
-        }
-      }
-
-      // Create session on server
-      const password = document.getElementById('new-session-password').value;
-      try {
-        const r = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, tracks, icon: selectedIcon, password: password || undefined }) });
         const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
-        toast(`Created session with ${tracks.length} tracks`);
-
-        // Reset form
-        document.getElementById('new-session-name').value = '';
-        document.getElementById('new-track-ids').value = '';
-        document.getElementById('new-workspace-id').value = '';
-        document.getElementById('new-session-password').value = '';
-        selectedIcon = '🎧'; initIconPicker();
-        document.getElementById('create-session-btn').classList.remove('hidden');
-        document.getElementById('create-loading').classList.add('hidden');
-
-        // Open the session
-        openSession(d.id, password || null);
-      } catch (e) {
-        showError('create-error', e.message);
-        document.getElementById('create-session-btn').classList.remove('hidden');
-        document.getElementById('create-loading').classList.add('hidden');
+        alert(d.error || 'Failed to delete');
       }
     }
 
-    // ═══ SESSION LOADING ════════════════════════════════
-    async function openSession(id, autoPassword = null) {
-      try {
-        let r = await fetch(`/api/sessions/${id}`);
-        let d = await r.json();
-
-        // If locked, prompt for password
-        if (r.status === 403 && d.locked) {
-          let pw = autoPassword;
-          if (!pw) {
-            pw = await promptPassword();
-            if (pw === null) return; // cancelled
-          }
-          r = await fetch(`/api/sessions/${id}/unlock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
-          d = await r.json();
-          if (!r.ok) { toast('Wrong password'); return; }
-        } else if (!r.ok) {
-          throw new Error(d.error);
-        }
-
-        currentSessionId = id;
-        sessionData = d;
-        buildQueue();
-        updateToggles();
-        switchScreen('player-screen');
-        if (playQueue.length > 0) { queuePos = 0; loadTrack(); }
-        else { toast('No unrated tracks left'); showResults(); }
-      } catch (e) { toast('Failed to open session: ' + e.message); }
+    // Modal Logic
+    function openNewModal() {
+      document.getElementById('new-modal').classList.remove('hidden');
+      document.getElementById('new-title').focus();
+    }
+    function closeNewModal() {
+      document.getElementById('new-modal').classList.add('hidden');
+      document.getElementById('new-error').classList.add('hidden');
     }
 
-    function goHome() {
-      audio.pause();
-      currentSessionId = null;
-      sessionData = null;
-      switchScreen('home-screen');
-      refreshHome();
-    }
-
-    // ═══ AUTH ════════════════════════════════════════════
-    function showAuthSetup() { switchScreen('auth-screen'); }
-
-    async function submitAuth() {
-      let token = document.getElementById('auth-token').value.trim();
-      if (!token) { showError('auth-error', 'Paste your token'); return; }
-      hideError('auth-error');
-      // Strip non-ASCII chars
-      token = token.replace(/[^\x00-\x7F]/g, '').trim();
-      token = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-      localStorage.setItem('sunoAuthToken', token);
-      toast('Token saved locally!');
-      switchScreen('home-screen');
-      refreshHome();
-    }
-
-    // ═══ QUEUE & PLAYBACK ═══════════════════════════════
-    function buildQueue() {
-      if (!sessionData) return;
-      const unrated = [];
-      sessionData.tracks.forEach((t, i) => {
-        const r = sessionData.ratings?.[t.id];
-        if (!r || !r.rating) unrated.push(i);
-      });
-      playQueue = shuffleOn ? shuffle([...unrated]) : [...unrated];
-      queuePos = -1;
-    }
-
-    function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
-
-    function loadTrack(shouldPlay = true) {
-      if (!sessionData || queuePos < 0 || queuePos >= playQueue.length) { updateCounter(); return; }
-      const track = sessionData.tracks[playQueue[queuePos]];
-      if (!track) return;
-
-      document.getElementById('track-title').textContent = track.title || `Track ${track.id.slice(0, 8)}...`;
-      document.getElementById('track-style').textContent = track.style || '';
-
-      const img = document.getElementById('art-img'), fb = img.nextElementSibling;
-      img.style.display = ''; fb.style.display = 'none'; img.src = track.imageUrl || '';
-      document.getElementById('art-bg').style.backgroundImage = track.imageUrl ? `url(${track.imageUrl})` : '';
-
-      // Rating & note display
-      const existing = sessionData.ratings?.[track.id];
-      document.getElementById('note-input').value = existing?.note || '';
-      const noteText = existing?.note || '';
-      const noteArea = document.getElementById('note-display-text');
-      noteArea.textContent = noteText ? `📝 ${noteText}` : '';
-
-      document.querySelectorAll('.rate-btn').forEach(btn => {
-        const r = btn.dataset.rating;
-        btn.classList.toggle('selected', r === 'CLEAR' ? false : existing?.rating === r);
-      });
-
-      audio.src = track.audioUrl;
-      if (shouldPlay) audio.play().catch(() => { });
-      updateCounter();
-      updatePlayBtn();
-    }
-
-    function updateCounter() {
-      const remaining = playQueue.length - queuePos - 1;
-      const total = sessionData ? sessionData.tracks.length : 0;
-      const rated = sessionData ? Object.values(sessionData.ratings || {}).filter(r => r.rating).length : 0;
-      document.getElementById('track-counter').textContent = `${Math.min(queuePos + 1, playQueue.length)} / ${playQueue.length} unrated · ${rated}/${total} rated`;
-    }
-
-    function nextTrack() {
-      queuePos++;
-      if (queuePos >= playQueue.length) {
-        buildQueue();
-        if (playQueue.length === 0) { toast('All tracks rated! 🎉'); showResults(); return; }
-        queuePos = 0;
-      }
-      loadTrack();
-    }
-
-    function prevTrack() { if (queuePos > 0) { queuePos--; loadTrack(); } }
-
-    function togglePlay() { if (audio.paused) audio.play().catch(() => { }); else audio.pause(); updatePlayBtn(); }
-    function updatePlayBtn() { document.getElementById('play-btn').textContent = audio.paused ? '▶' : '⏸'; }
-
-    audio.addEventListener('play', updatePlayBtn);
-    audio.addEventListener('pause', updatePlayBtn);
-    audio.addEventListener('ended', () => { updatePlayBtn(); if (autoAdvance) { const t = sessionData?.tracks[playQueue[queuePos]]; if (t && sessionData.ratings?.[t.id]?.rating) nextTrack(); } });
-    audio.addEventListener('timeupdate', () => { if (!audio.duration) return; document.getElementById('progress-fill').style.width = (audio.currentTime / audio.duration * 100) + '%'; document.getElementById('time-current').textContent = formatTime(audio.currentTime); document.getElementById('time-duration').textContent = formatTime(audio.duration); });
-
-    document.getElementById('progress-container').addEventListener('click', e => { if (!audio.duration) return; const r = e.currentTarget.getBoundingClientRect(); audio.currentTime = ((e.clientX - r.left) / r.width) * audio.duration; });
-    let seeking = false;
-    document.getElementById('progress-container').addEventListener('touchstart', () => { seeking = true; }, { passive: true });
-    document.getElementById('progress-container').addEventListener('touchmove', e => { if (!seeking || !audio.duration) return; const r = e.currentTarget.getBoundingClientRect(); const t = e.touches[0]; audio.currentTime = Math.max(0, Math.min(1, (t.clientX - r.left) / r.width)) * audio.duration; }, { passive: true });
-    document.addEventListener('touchend', () => { seeking = false; });
-
-    // ═══ RATING ═════════════════════════════════════════
-    function rateTrack(rating) {
-      if (!sessionData) return;
-      const track = sessionData.tracks[playQueue[queuePos]];
-      if (!track) return;
-
-      if (rating === null) {
-        // Clear rating
-        if (sessionData.ratings?.[track.id]) {
-          delete sessionData.ratings[track.id].rating;
-        }
-        fetch(`/api/sessions/${currentSessionId}/rate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trackId: track.id, rating: null, title: track.title, imageUrl: track.imageUrl, style: track.style }) }).catch(() => { });
-        document.querySelectorAll('.rate-btn').forEach(btn => btn.classList.remove('selected'));
-        toast('Rating cleared');
-        serverSync();
-        return;
-      }
-
-      if (!sessionData.ratings) sessionData.ratings = {};
-      sessionData.ratings[track.id] = {
-        ...(sessionData.ratings[track.id] || {}),
-        rating, title: track.title, imageUrl: track.imageUrl, style: track.style,
-        updatedAt: new Date().toISOString(),
-      };
-
-      fetch(`/api/sessions/${currentSessionId}/rate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trackId: track.id, rating, title: track.title, imageUrl: track.imageUrl, style: track.style }) }).catch(() => { });
-
-      document.querySelectorAll('.rate-btn').forEach(btn => {
-        const r = btn.dataset.rating;
-        btn.classList.toggle('selected', r === 'CLEAR' ? false : r === rating);
-      });
-
-      const labels = { TRASH: '🗑️ Trashed', OK: '👌 OK', GOOD: '👍 Good', PERFECT: '⭐ Perfect' };
-      toast(labels[rating] || rating);
-      serverSync();
-
-      if (rating === 'TRASH') {
-        playQueue.splice(queuePos, 1);
-        if (queuePos >= playQueue.length) queuePos = 0;
-        if (playQueue.length === 0) { toast('All tracks rated! 🎉'); showResults(); return; }
-        loadTrack();
-        return;
-      }
-
-      if (autoAdvance) {
-        setTimeout(() => {
-          playQueue.splice(queuePos, 1);
-          if (playQueue.length === 0) { toast('All tracks rated! 🎉'); showResults(); return; }
-          if (queuePos >= playQueue.length) queuePos = 0;
-          loadTrack();
-        }, 400);
+    function updateSlugHint() {
+      const title = document.getElementById('new-title').value;
+      const slugInput = document.getElementById('new-slug');
+      if (!slugInput.dataset.manual) {
+        slugInput.value = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       }
     }
 
-    function saveNote() {
-      if (!sessionData) return;
-      const track = sessionData.tracks[playQueue[queuePos]];
-      if (!track) return;
-      const note = document.getElementById('note-input').value.trim();
-      if (!sessionData.ratings) sessionData.ratings = {};
-      sessionData.ratings[track.id] = { ...(sessionData.ratings[track.id] || {}), note, updatedAt: new Date().toISOString() };
-      document.getElementById('note-display-text').textContent = note ? `📝 ${note}` : '';
-      fetch(`/api/sessions/${currentSessionId}/rate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trackId: track.id, note }) }).catch(() => { });
-      toast('Note saved');
-    }
-
-    function serverSync() {
-      if (!currentSessionId || !sessionData) return;
-      fetch(`/api/sessions/${currentSessionId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ratings: sessionData.ratings }) }).catch(() => { });
-    }
-
-    // ═══ TOGGLES ════════════════════════════════════════
-    function toggleShuffle() {
-      shuffleOn = !shuffleOn; updateToggles();
-      const cur = playQueue[queuePos]; buildQueue();
-      const f = playQueue.indexOf(cur); queuePos = f !== -1 ? f : 0;
-      updateCounter(); toast(shuffleOn ? 'Shuffle ON' : 'Shuffle OFF');
-    }
-    function toggleAutoAdvance() { autoAdvance = !autoAdvance; updateToggles(); toast(autoAdvance ? 'Auto-advance ON' : 'Auto-advance OFF'); }
-    function updateToggles() { document.getElementById('shuffle-btn').classList.toggle('active', shuffleOn); document.getElementById('auto-advance-btn').classList.toggle('active', autoAdvance); }
-
-    // ═══ RESULTS ════════════════════════════════════════
-    function showResults() { switchScreen('results-screen'); renderResults(); }
-    function showPlayer() { switchScreen('player-screen'); }
-
-    function filterResults(f) {
-      currentFilter = f;
-      document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
-      renderResults();
-    }
-
-    function renderResults() {
-      if (!sessionData) return;
-      const list = document.getElementById('results-list');
-      const items = sessionData.tracks.map(t => { const r = sessionData.ratings?.[t.id] || {}; return { ...t, rating: r.rating || null, note: r.note || '', updatedAt: r.updatedAt }; });
-
-      let filtered = items;
-      if (currentFilter === 'UNRATED') filtered = items.filter(i => !i.rating);
-      else if (currentFilter !== 'ALL') filtered = items.filter(i => i.rating === currentFilter);
-
-      if (filtered.length === 0) { list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>No tracks in this category</p></div>'; return; }
-
-      const order = { PERFECT: 0, GOOD: 1, OK: 2, TRASH: 3 };
-      filtered.sort((a, b) => (order[a.rating] ?? 4) - (order[b.rating] ?? 4));
-
-      list.innerHTML = filtered.map(item => `
-    <div class="result-card" data-id="${item.id}">
-      <div class="result-thumb"><img src="${item.imageUrl || ''}" alt="" onerror="this.parentElement.innerHTML='🎶';"></div>
-      <div class="result-info">
-        <div class="title">${escHtml(item.title || item.id.slice(0, 12) + '...')}</div>
-        <div class="meta" title="Click to expand/collapse" onclick="this.classList.toggle('expanded')">${escHtml(item.style || '')} ${item.rating ? '' : '· unrated'}</div>
-        ${item.note ? `<div class="note">📝 ${escHtml(item.note)}</div>` : ''}
-      </div>
-      ${item.rating ? `<span class="result-badge badge-${item.rating}">${item.rating}</span>` : ''}
-      <div class="result-actions">
-        <button onclick="playFromResults('${item.id}')" title="Play">▶</button>
-        <button onclick="window.open('https://suno.com/song/${item.id}','_blank')" title="Suno">🔗</button>
-      </div>
-    </div>
-  `).join('');
-    }
-
-    function playFromResults(id) {
-      if (!sessionData) return;
-      const idx = sessionData.tracks.findIndex(t => t.id === id);
-      if (idx === -1) return;
-      switchScreen('player-screen');
-      let qi = playQueue.indexOf(idx);
-      if (qi === -1) { playQueue.push(idx); qi = playQueue.length - 1; }
-      queuePos = qi; loadTrack();
-    }
-
-    // ═══ EXPORT ═════════════════════════════════════════
-    function exportRatings() {
-      if (!sessionData) return;
-      downloadBlob(JSON.stringify(sessionData, null, 2), `suno-session-${sessionData.name}.json`, 'application/json');
-      toast('Exported');
-    }
-
-    function downloadPerfect() {
-      if (!sessionData) return;
-      const perfect = sessionData.tracks.filter(t => sessionData.ratings?.[t.id]?.rating === 'PERFECT');
-      if (!perfect.length) { toast('No PERFECT tracks'); return; }
-      const text = perfect.map(t => { const r = sessionData.ratings[t.id]; return `${t.title || t.id}\n  Download: https://cdn1.suno.ai/${t.id}.mp3\n  Suno: https://suno.com/song/${t.id}${r?.note ? '\n  Note: ' + r.note : ''}`; }).join('\n\n');
-      downloadBlob(text, 'perfect-tracks.txt', 'text/plain');
-      toast(`${perfect.length} perfect track(s) listed`);
-    }
-
-    function copyRatingSummary() {
-      if (!sessionData) return;
-      const lines = [], groups = { PERFECT: [], GOOD: [], OK: [], TRASH: [] };
-      sessionData.tracks.forEach(t => { const r = sessionData.ratings?.[t.id]; if (r?.rating && groups[r.rating]) groups[r.rating].push(`  ${t.title || t.id}${r.note ? ' — ' + r.note : ''}`); });
-      for (const [l, items] of Object.entries(groups)) { if (items.length > 0) { lines.push(`${l} (${items.length}):`, ...items, ''); } }
-      navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Summary copied!')).catch(() => toast('Copy failed'));
-    }
-
-    function downloadBlob(c, f, t) { const b = new Blob([c], { type: t }), u = URL.createObjectURL(b), a = document.createElement('a'); a.href = u; a.download = f; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); }
-    function openSunoPage() { if (!sessionData) return; const t = sessionData.tracks[playQueue[queuePos]]; if (t) window.open(`https://suno.com/song/${t.id}`, '_blank'); }
-
-    // ═══ KEYBOARD SHORTCUTS ═════════════════════════════
-    document.addEventListener('keydown', e => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (!document.getElementById('player-screen').classList.contains('active')) return;
-      switch (e.key) {
-        case '1': rateTrack('TRASH'); break; case '2': rateTrack('OK'); break; case '3': rateTrack('GOOD'); break; case '4': rateTrack('PERFECT'); break;
-        case '0': rateTrack(null); break;
-        case ' ': e.preventDefault(); togglePlay(); break;
-        case 'n': case 'N': document.getElementById('note-input').focus(); break;
-        case 'ArrowRight': nextTrack(); break; case 'ArrowLeft': prevTrack(); break;
-        case 's': case 'S': toggleShuffle(); break; case 'r': case 'R': showResults(); break;
-      }
+    document.getElementById('new-slug').addEventListener('input', function () {
+      this.dataset.manual = 'true';
     });
 
-    // ═══ ICON Picker ═════════════════════════════════════
-    function initIconPicker() {
-      const picker = document.getElementById('icon-picker');
-      picker.innerHTML = SESSION_ICONS.map(icon =>
-        `<button type="button" class="${icon === selectedIcon ? 'selected' : ''}" onclick="selectIcon(this,'${icon}')">${icon}</button>`
-      ).join('') + `<input type="text" class="custom-icon-input" placeholder="+" maxlength="2"
-                      onfocus="selectCustomIcon(this)" oninput="updateCustomIcon(this)" 
-                      title="Paste a custom emoji or symbol" />`;
-    }
-    function selectIcon(btn, icon) {
-      selectedIcon = icon;
-      document.querySelectorAll('#icon-picker button').forEach(b => b.classList.remove('selected'));
-      const customInp = document.querySelector('.custom-icon-input');
-      if (customInp) { customInp.classList.remove('selected'); customInp.value = ''; }
-      btn.classList.add('selected');
-    }
-    function selectCustomIcon(inp) {
-      document.querySelectorAll('#icon-picker button').forEach(b => b.classList.remove('selected'));
-      inp.classList.add('selected');
-      if (inp.value) selectedIcon = inp.value;
-    }
-    function updateCustomIcon(inp) {
-      if (inp.value) {
-        selectedIcon = inp.value;
+    async function createProject() {
+      const title = document.getElementById('new-title').value.trim();
+      const slug = document.getElementById('new-slug').value.trim();
+      const description = document.getElementById('new-desc').value.trim();
+      const password = document.getElementById('new-password').value;
+      const errEl = document.getElementById('new-error');
+
+      if (!title || !slug) {
+        errEl.textContent = 'Title and Slug are required';
+        errEl.classList.remove('hidden');
+        return;
       }
-    }
-
-    // ═══ EDIT SESSION ════════════════════════════════════
-    function initEditIconPicker() {
-      const picker = document.getElementById('edit-icon-picker');
-      picker.innerHTML = SESSION_ICONS.map(icon =>
-        `<button type="button" class="${icon === editSelectedIcon ? 'selected' : ''}" onclick="selectEditIcon(this,'${icon}')">${icon}</button>`
-      ).join('') + `<input type="text" class="custom-icon-input" placeholder="+" maxlength="2"
-                      onfocus="selectCustomEditIcon(this)" oninput="updateCustomEditIcon(this)" />`;
-    }
-    function selectEditIcon(btn, icon) {
-      editSelectedIcon = icon;
-      document.querySelectorAll('#edit-icon-picker button').forEach(b => b.classList.remove('selected'));
-      const customInp = document.querySelector('#edit-icon-picker .custom-icon-input');
-      if (customInp) { customInp.classList.remove('selected'); customInp.value = ''; }
-      btn.classList.add('selected');
-    }
-    function selectCustomEditIcon(inp) {
-      document.querySelectorAll('#edit-icon-picker button').forEach(b => b.classList.remove('selected'));
-      inp.classList.add('selected');
-      if (inp.value) editSelectedIcon = inp.value;
-    }
-    function updateCustomEditIcon(inp) {
-      if (inp.value) editSelectedIcon = inp.value;
-    }
-
-    function switchEditTab(tab) {
-      editTabMode = tab;
-      document.getElementById('edit-tab-ids-content').classList.toggle('hidden', tab !== 'ids');
-      document.getElementById('edit-tab-workspace-content').classList.toggle('hidden', tab !== 'workspace');
-      document.getElementById('edit-tab-ids').classList.toggle('active', tab === 'ids');
-      document.getElementById('edit-tab-workspace').classList.toggle('active', tab === 'workspace');
-    }
-
-    function openEditModal(id, name, icon) {
-      editingSessionId = id;
-      document.getElementById('edit-session-name').value = name;
-      editSelectedIcon = icon;
-      initEditIconPicker();
-      document.getElementById('edit-track-ids').value = '';
-      document.getElementById('edit-workspace-id').value = '';
-      hideError('edit-error');
-      document.getElementById('edit-session-modal').classList.remove('hidden');
-    }
-
-    function closeEditModal() {
-      document.getElementById('edit-session-modal').classList.add('hidden');
-      editingSessionId = null;
-    }
-
-    async function saveEditedSession() {
-      const name = document.getElementById('edit-session-name').value.trim();
-      if (!name) { showError('edit-error', 'Session name required'); return; }
-      hideError('edit-error');
-
-      let newTracks = [];
-      const rawIds = document.getElementById('edit-track-ids').value.trim();
-      const wid = document.getElementById('edit-workspace-id').value.trim();
-
-      document.getElementById('edit-save-btn').classList.add('hidden');
-      document.getElementById('edit-loading').classList.remove('hidden');
-
-      if (editTabMode === 'ids' && rawIds) {
-        let ids = rawIds.replace(/[\[\]"']/g, '').split(/[\n,\s]+/).map(s => s.trim()).filter(s => /^[a-f0-9-]{36}$/i.test(s));
-        ids = [...new Set(ids)];
-        if (ids.length > 0) {
-          try {
-            const auth = localStorage.getItem('sunoAuthToken') || '';
-            const r = await fetch('/api/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ ids }) });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.error);
-            newTracks = d.tracks;
-          } catch (e) {
-            showError('edit-error', e.message);
-            document.getElementById('edit-save-btn').classList.remove('hidden');
-            document.getElementById('edit-loading').classList.add('hidden');
-            return;
-          }
-        }
-      } else if (editTabMode === 'workspace' && wid) {
-        try {
-          const auth = localStorage.getItem('sunoAuthToken') || '';
-          const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ workspaceId: wid }) });
-          const d = await r.json();
-          if (!r.ok) throw new Error(d.error);
-          newTracks = d.tracks;
-        } catch (e) {
-          showError('edit-error', e.message);
-          document.getElementById('edit-save-btn').classList.remove('hidden');
-          document.getElementById('edit-loading').classList.add('hidden');
-          return;
-        }
+      if (!/^[a-z0-9-]+$/.test(slug)) {
+        errEl.textContent = 'Slug can only contain lowercase letters, numbers, and hyphens';
+        errEl.classList.remove('hidden');
+        return;
       }
 
       try {
-        const body = { name, icon: editSelectedIcon };
-        if (newTracks.length > 0) body.newTracks = newTracks;
-        const r = await fetch(`/api/sessions/${editingSessionId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const payload = { title, slug, description };
+        if (password) payload.password = password;
+
+        const r = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
         const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
-        toast(newTracks.length > 0 ? `Saved session and imported ${newTracks.length} tracks` : `Session updated`);
-        closeEditModal();
-        refreshHome();
+
+        if (r.ok) {
+          closeNewModal();
+          document.getElementById('new-title').value = '';
+          document.getElementById('new-slug').value = '';
+          document.getElementById('new-slug').dataset.manual = '';
+          document.getElementById('new-desc').value = '';
+          document.getElementById('new-password').value = '';
+
+          if (password) {
+            sessionStorage.setItem(`suno_project_pw_${slug}`, password);
+          }
+          window.location.href = `/${slug}`; // redirect immediately
+        } else {
+          errEl.textContent = d.error || 'Failed to create';
+          errEl.classList.remove('hidden');
+        }
       } catch (e) {
-        showError('edit-error', e.message);
-      } finally {
-        document.getElementById('edit-save-btn').classList.remove('hidden');
-        document.getElementById('edit-loading').classList.add('hidden');
+        errEl.textContent = e.message;
+        errEl.classList.remove('hidden');
       }
     }
 
-    // ═══ PASSWORD PROMPT ═════════════════════════════════
-    function promptPassword() {
-      return new Promise(resolve => {
-        const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
-        overlay.innerHTML = `
-          <div class="modal-box">
-            <div style="font-size:36px;">🔒</div>
-            <div style="font-size:16px;font-weight:600;">Session Protected</div>
-            <div class="input-group" style="max-width:100%;">
-              <label>Password</label>
-              <input type="password" id="unlock-password" placeholder="Enter password" autofocus>
-            </div>
-            <div id="unlock-error" class="error-text hidden"></div>
-            <div style="display:flex;gap:8px;width:100%;">
-              <button class="btn btn-secondary" style="flex:1;" id="unlock-cancel">Cancel</button>
-              <button class="btn btn-primary" style="flex:1;" id="unlock-submit">Unlock</button>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(overlay);
-        const inp = overlay.querySelector('#unlock-password');
-        setTimeout(() => inp.focus(), 100);
-        overlay.querySelector('#unlock-cancel').onclick = () => { overlay.remove(); resolve(null); };
-        overlay.querySelector('#unlock-submit').onclick = () => { overlay.remove(); resolve(inp.value); };
-        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { overlay.remove(); resolve(inp.value); } });
-      });
-    }
-
-    // ═══ INIT ═══════════════════════════════════════════
-    initIconPicker();
-    refreshHome();
+    // Init
+    loadProjects();
   </script>
 </body>
 
