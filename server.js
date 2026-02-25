@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const https = require('https');
+const NodeID3 = require('node-id3');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -546,19 +547,53 @@ app.post('/api/playlist', async (req, res) => {
   }
 });
 
-app.get('/api/download/:id', (req, res) => {
-  const url = `https://cdn1.suno.ai/${req.params.id}.mp3`;
-  https.get(url, (response) => {
-    if (response.statusCode >= 400) {
-      return res.status(response.statusCode).send('File not found or unreachable');
-    }
-    const title = req.query.title ? req.query.title.replace(/[^a-zA-Z0-9 \-_]/gi, '').trim() : req.params.id;
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Content-Disposition', `attachment; filename="${title}.mp3"`);
-    response.pipe(res);
-  }).on('error', (e) => {
-    res.status(500).send(e.message);
+function fetchBuffer(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if (res.statusCode >= 400) return resolve(null);
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    }).on('error', reject);
   });
+}
+
+app.get('/api/download/:id', async (req, res) => {
+  const url = `https://cdn1.suno.ai/${req.params.id}.mp3`;
+
+  const rawTitle = req.query.title || req.params.id;
+  const safeFilename = rawTitle.replace(/[\/\\?%*:|"<>]/g, '-').trim() || req.params.id;
+
+  try {
+    const mp3Buffer = await fetchBuffer(url);
+    if (!mp3Buffer) return res.status(404).send('File not found or unreachable');
+
+    const tags = {
+      title: rawTitle,
+      artist: 'Suno AI',
+      album: req.query.style || 'Suno Generations',
+    };
+
+    if (req.query.image) {
+      const imgBuffer = await fetchBuffer(req.query.image);
+      if (imgBuffer) {
+        tags.image = {
+          mime: "jpeg",
+          type: { id: 3, name: "front cover" },
+          description: "Cover",
+          imageBuffer: imgBuffer
+        };
+      }
+    }
+
+    const taggedBuffer = NodeID3.write(tags, mp3Buffer);
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}.mp3"`);
+    res.send(taggedBuffer);
+  } catch (e) {
+    res.status(500).send(e.message);
+  }
 });
 
 app.get('/:slug', (req, res, next) => {
