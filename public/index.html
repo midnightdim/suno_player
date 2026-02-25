@@ -1073,6 +1073,38 @@
 
   <div class="toast-container" id="toast-container"></div>
 
+  <!-- Edit Session Modal -->
+  <div class="modal-overlay hidden" id="edit-session-modal">
+    <div class="modal-box" style="max-width:400px;width:100%;align-items:stretch;">
+      <h3 style="text-align:center;margin-top:0;">Edit Session</h3>
+      <div class="input-group"><label>Session Name</label><input id="edit-session-name"></div>
+      <div class="input-group"><label>Icon</label>
+        <div class="icon-picker" id="edit-icon-picker"></div>
+      </div>
+      <div style="margin-top:10px;font-weight:600;">Import More Tracks</div>
+      <div class="tab-row">
+        <button class="btn btn-secondary btn-sm active" id="edit-tab-ids" onclick="switchEditTab('ids')">Paste
+          IDs</button>
+        <button class="btn btn-secondary btn-sm" id="edit-tab-workspace" onclick="switchEditTab('workspace')">From
+          Workspace</button>
+      </div>
+      <div id="edit-tab-ids-content">
+        <div class="input-group"><label>Track IDs</label><textarea id="edit-track-ids"
+            placeholder="Paste additional IDs" style="min-height:60px;"></textarea></div>
+      </div>
+      <div id="edit-tab-workspace-content" class="hidden">
+        <div class="input-group"><label>Workspace ID</label><input id="edit-workspace-id"
+            placeholder="bdec811e-d376-409e-a12c-33261e3d7b10"></div>
+      </div>
+      <div id="edit-error" class="error-text hidden"></div>
+      <div id="edit-loading" class="hidden" style="display:flex;gap:10px;align-items:center;">Fetching...</div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeEditModal()">Cancel</button>
+        <button class="btn btn-primary" style="flex:1;" id="edit-save-btn" onclick="saveEditedSession()">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ HOME SCREEN ═══ -->
   <div class="screen active" id="home-screen">
     <div class="home-header">
@@ -1233,6 +1265,9 @@
     let currentFilter = 'ALL';
     let newTabMode = 'ids';
     let selectedIcon = '🎧';
+    let editTabMode = 'ids';
+    let editSelectedIcon = '🎧';
+    let editingSessionId = null;
     const SESSION_ICONS = ['🎧', '🎵', '🎸', '🎹', '🥁', '🎤', '🎺', '🎻', '🎶', '🎼', '🔥', '💎', '🌟', '🌙', '🚀', '💜'];
 
     const audio = document.getElementById('audio');
@@ -1272,7 +1307,10 @@
           <div class="name">${s.locked ? '<span class="lock-badge">🔒</span>' : ''}${escHtml(s.name)}</div>
           <div class="meta">${s.trackCount} tracks · ${s.ratedCount} rated · ${new Date(s.createdAt).toLocaleDateString()}</div>
         </div>
-        <button class="session-delete" onclick="event.stopPropagation();deleteSession('${s.id}','${escHtml(s.name)}')" title="Delete">🗑️</button>
+        <div style="display:flex;gap:6px;">
+          <button class="session-delete" style="background:var(--bg-glass);" onclick="event.stopPropagation();openEditModal('${s.id}','${escHtml(s.name)}','${s.icon || '🎧'}')" title="Edit">✏️</button>
+          <button class="session-delete" onclick="event.stopPropagation();deleteSession('${s.id}','${escHtml(s.name)}')" title="Delete">🗑️</button>
+        </div>
       </div>
     `).join('');
       } catch (e) {
@@ -1365,7 +1403,7 @@
         document.getElementById('create-loading').classList.add('hidden');
 
         // Open the session
-        openSession(d.id);
+        openSession(d.id, password || null);
       } catch (e) {
         showError('create-error', e.message);
         document.getElementById('create-session-btn').classList.remove('hidden');
@@ -1374,15 +1412,18 @@
     }
 
     // ═══ SESSION LOADING ════════════════════════════════
-    async function openSession(id) {
+    async function openSession(id, autoPassword = null) {
       try {
         let r = await fetch(`/api/sessions/${id}`);
         let d = await r.json();
 
         // If locked, prompt for password
         if (r.status === 403 && d.locked) {
-          const pw = await promptPassword();
-          if (pw === null) return; // cancelled
+          let pw = autoPassword;
+          if (!pw) {
+            pw = await promptPassword();
+            if (pw === null) return; // cancelled
+          }
           r = await fetch(`/api/sessions/${id}/unlock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
           d = await r.json();
           if (!r.ok) { toast('Wrong password'); return; }
@@ -1699,6 +1740,113 @@
     function updateCustomIcon(inp) {
       if (inp.value) {
         selectedIcon = inp.value;
+      }
+    }
+
+    // ═══ EDIT SESSION ════════════════════════════════════
+    function initEditIconPicker() {
+      const picker = document.getElementById('edit-icon-picker');
+      picker.innerHTML = SESSION_ICONS.map(icon =>
+        `<button type="button" class="${icon === editSelectedIcon ? 'selected' : ''}" onclick="selectEditIcon(this,'${icon}')">${icon}</button>`
+      ).join('') + `<input type="text" class="custom-icon-input" placeholder="+" maxlength="2"
+                      onfocus="selectCustomEditIcon(this)" oninput="updateCustomEditIcon(this)" />`;
+    }
+    function selectEditIcon(btn, icon) {
+      editSelectedIcon = icon;
+      document.querySelectorAll('#edit-icon-picker button').forEach(b => b.classList.remove('selected'));
+      const customInp = document.querySelector('#edit-icon-picker .custom-icon-input');
+      if (customInp) { customInp.classList.remove('selected'); customInp.value = ''; }
+      btn.classList.add('selected');
+    }
+    function selectCustomEditIcon(inp) {
+      document.querySelectorAll('#edit-icon-picker button').forEach(b => b.classList.remove('selected'));
+      inp.classList.add('selected');
+      if (inp.value) editSelectedIcon = inp.value;
+    }
+    function updateCustomEditIcon(inp) {
+      if (inp.value) editSelectedIcon = inp.value;
+    }
+
+    function switchEditTab(tab) {
+      editTabMode = tab;
+      document.getElementById('edit-tab-ids-content').classList.toggle('hidden', tab !== 'ids');
+      document.getElementById('edit-tab-workspace-content').classList.toggle('hidden', tab !== 'workspace');
+      document.getElementById('edit-tab-ids').classList.toggle('active', tab === 'ids');
+      document.getElementById('edit-tab-workspace').classList.toggle('active', tab === 'workspace');
+    }
+
+    function openEditModal(id, name, icon) {
+      editingSessionId = id;
+      document.getElementById('edit-session-name').value = name;
+      editSelectedIcon = icon;
+      initEditIconPicker();
+      document.getElementById('edit-track-ids').value = '';
+      document.getElementById('edit-workspace-id').value = '';
+      hideError('edit-error');
+      document.getElementById('edit-session-modal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-session-modal').classList.add('hidden');
+      editingSessionId = null;
+    }
+
+    async function saveEditedSession() {
+      const name = document.getElementById('edit-session-name').value.trim();
+      if (!name) { showError('edit-error', 'Session name required'); return; }
+      hideError('edit-error');
+
+      let newTracks = [];
+      const rawIds = document.getElementById('edit-track-ids').value.trim();
+      const wid = document.getElementById('edit-workspace-id').value.trim();
+
+      document.getElementById('edit-save-btn').classList.add('hidden');
+      document.getElementById('edit-loading').classList.remove('hidden');
+
+      if (editTabMode === 'ids' && rawIds) {
+        let ids = rawIds.replace(/[\[\]"']/g, '').split(/[\n,\s]+/).map(s => s.trim()).filter(s => /^[a-f0-9-]{36}$/i.test(s));
+        ids = [...new Set(ids)];
+        if (ids.length > 0) {
+          try {
+            const r = await fetch('/api/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error);
+            newTracks = d.tracks;
+          } catch (e) {
+            showError('edit-error', e.message);
+            document.getElementById('edit-save-btn').classList.remove('hidden');
+            document.getElementById('edit-loading').classList.add('hidden');
+            return;
+          }
+        }
+      } else if (editTabMode === 'workspace' && wid) {
+        try {
+          const r = await fetch('/api/workspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: wid }) });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error);
+          newTracks = d.tracks;
+        } catch (e) {
+          showError('edit-error', e.message);
+          document.getElementById('edit-save-btn').classList.remove('hidden');
+          document.getElementById('edit-loading').classList.add('hidden');
+          return;
+        }
+      }
+
+      try {
+        const body = { name, icon: editSelectedIcon };
+        if (newTracks.length > 0) body.newTracks = newTracks;
+        const r = await fetch(`/api/sessions/${editingSessionId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error);
+        toast(newTracks.length > 0 ? `Saved session and imported ${newTracks.length} tracks` : `Session updated`);
+        closeEditModal();
+        refreshHome();
+      } catch (e) {
+        showError('edit-error', e.message);
+      } finally {
+        document.getElementById('edit-save-btn').classList.remove('hidden');
+        document.getElementById('edit-loading').classList.add('hidden');
       }
     }
 

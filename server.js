@@ -231,10 +231,19 @@ app.put('/api/sessions/:id', (req, res) => {
   const session = sessions[req.params.id];
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
-  const { tracks, ratings, name } = req.body;
+  const { tracks, newTracks, ratings, name, icon } = req.body;
   if (tracks !== undefined) session.tracks = tracks;
+  if (newTracks !== undefined && Array.isArray(newTracks)) {
+    const existingIds = new Set(session.tracks.map(t => t.id));
+    for (const t of newTracks) {
+      if (!existingIds.has(t.id)) {
+        session.tracks.push(t);
+      }
+    }
+  }
   if (ratings !== undefined) session.ratings = ratings;
   if (name !== undefined) session.name = name;
+  if (icon !== undefined) session.icon = icon;
   session.updatedAt = new Date().toISOString();
 
   saveSessions(sessions);
