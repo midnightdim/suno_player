@@ -902,6 +902,68 @@
       border-color: var(--accent);
     }
 
+    /* ── Icon Picker ────────────────────────────────── */
+    .icon-picker {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .icon-picker button {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--bg-glass);
+      border: 2px solid var(--border);
+      font-size: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-picker button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .icon-picker button.selected {
+      border-color: var(--accent);
+      background: rgba(124, 92, 255, 0.15);
+    }
+
+    .lock-badge {
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-right: 4px;
+    }
+
+    /* ── Password Modal ─────────────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      max-width: 360px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+    }
+
     /* ── Toast ────────────────────────────────────────── */
     .toast-container {
       position: fixed;
@@ -1000,6 +1062,11 @@
       <h3>New Session</h3>
       <div class="input-group"><label>Session Name</label><input id="new-session-name"
           placeholder="e.g. Covers Batch 3"></div>
+      <div class="input-group"><label>Icon</label>
+        <div class="icon-picker" id="icon-picker"></div>
+      </div>
+      <div class="input-group"><label>Password (optional)</label><input type="password" id="new-session-password"
+          placeholder="Leave empty for no protection"></div>
       <div class="tab-row">
         <button class="btn btn-secondary btn-sm active" id="tab-ids" onclick="switchNewTab('ids')">Paste IDs</button>
         <button class="btn btn-secondary btn-sm" id="tab-workspace" onclick="switchNewTab('workspace')">From
@@ -1142,6 +1209,8 @@
     let autoAdvance = true;
     let currentFilter = 'ALL';
     let newTabMode = 'ids';
+    let selectedIcon = '🎧';
+    const SESSION_ICONS = ['🎧', '🎵', '🎸', '🎹', '🥁', '🎤', '🎺', '🎻', '🎶', '🎼', '🔥', '💎', '🌟', '🌙', '🚀', '💜'];
 
     const audio = document.getElementById('audio');
 
@@ -1175,9 +1244,9 @@
         }
         list.innerHTML = sessions.map(s => `
       <div class="session-card" onclick="openSession('${s.id}')">
-        <div class="session-icon">🎧</div>
+        <div class="session-icon">${s.icon || '🎧'}</div>
         <div class="session-info">
-          <div class="name">${escHtml(s.name)}</div>
+          <div class="name">${s.locked ? '<span class="lock-badge">🔒</span>' : ''}${escHtml(s.name)}</div>
           <div class="meta">${s.trackCount} tracks · ${s.ratedCount} rated · ${new Date(s.createdAt).toLocaleDateString()}</div>
         </div>
         <button class="session-delete" onclick="event.stopPropagation();deleteSession('${s.id}','${escHtml(s.name)}')" title="Delete">🗑️</button>
@@ -1256,8 +1325,9 @@
       }
 
       // Create session on server
+      const password = document.getElementById('new-session-password').value;
       try {
-        const r = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, tracks }) });
+        const r = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, tracks, icon: selectedIcon, password: password || undefined }) });
         const d = await r.json();
         if (!r.ok) throw new Error(d.error);
         toast(`Created session with ${tracks.length} tracks`);
@@ -1266,6 +1336,8 @@
         document.getElementById('new-session-name').value = '';
         document.getElementById('new-track-ids').value = '';
         document.getElementById('new-workspace-id').value = '';
+        document.getElementById('new-session-password').value = '';
+        selectedIcon = '🎧'; initIconPicker();
         document.getElementById('create-session-btn').classList.remove('hidden');
         document.getElementById('create-loading').classList.add('hidden');
 
@@ -1281,9 +1353,20 @@
     // ═══ SESSION LOADING ════════════════════════════════
     async function openSession(id) {
       try {
-        const r = await fetch(`/api/sessions/${id}`);
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
+        let r = await fetch(`/api/sessions/${id}`);
+        let d = await r.json();
+
+        // If locked, prompt for password
+        if (r.status === 403 && d.locked) {
+          const pw = await promptPassword();
+          if (pw === null) return; // cancelled
+          r = await fetch(`/api/sessions/${id}/unlock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+          d = await r.json();
+          if (!r.ok) { toast('Wrong password'); return; }
+        } else if (!r.ok) {
+          throw new Error(d.error);
+        }
+
         currentSessionId = id;
         sessionData = d;
         buildQueue();
@@ -1569,7 +1652,50 @@
       }
     });
 
+    // ═══ ICON PICKER ═════════════════════════════════════
+    function initIconPicker() {
+      const picker = document.getElementById('icon-picker');
+      picker.innerHTML = SESSION_ICONS.map(icon =>
+        `<button type="button" class="${icon === selectedIcon ? 'selected' : ''}" onclick="selectIcon(this,'${icon}')">${icon}</button>`
+      ).join('');
+    }
+    function selectIcon(btn, icon) {
+      selectedIcon = icon;
+      document.querySelectorAll('#icon-picker button').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    }
+
+    // ═══ PASSWORD PROMPT ═════════════════════════════════
+    function promptPassword() {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+          <div class="modal-box">
+            <div style="font-size:36px;">🔒</div>
+            <div style="font-size:16px;font-weight:600;">Session Protected</div>
+            <div class="input-group" style="max-width:100%;">
+              <label>Password</label>
+              <input type="password" id="unlock-password" placeholder="Enter password" autofocus>
+            </div>
+            <div id="unlock-error" class="error-text hidden"></div>
+            <div style="display:flex;gap:8px;width:100%;">
+              <button class="btn btn-secondary" style="flex:1;" id="unlock-cancel">Cancel</button>
+              <button class="btn btn-primary" style="flex:1;" id="unlock-submit">Unlock</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        const inp = overlay.querySelector('#unlock-password');
+        setTimeout(() => inp.focus(), 100);
+        overlay.querySelector('#unlock-cancel').onclick = () => { overlay.remove(); resolve(null); };
+        overlay.querySelector('#unlock-submit').onclick = () => { overlay.remove(); resolve(inp.value); };
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { overlay.remove(); resolve(inp.value); } });
+      });
+    }
+
     // ═══ INIT ═══════════════════════════════════════════
+    initIconPicker();
     refreshHome();
   </script>
 </body>

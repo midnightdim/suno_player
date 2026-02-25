@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -139,10 +140,12 @@ async function fetchWorkspaceIds(workspaceId) {
 
 // Auth management (server-level, not per-session)
 app.post('/api/auth', (req, res) => {
-  const { authorization, deviceId } = req.body;
+  let { authorization, deviceId } = req.body;
   if (!authorization) {
     return res.status(400).json({ error: 'Authorization token is required' });
   }
+  // Strip non-ASCII chars that break Node fetch headers (e.g. Unicode ellipsis from copy-paste)
+  authorization = authorization.replace(/[^\x00-\x7F]/g, '').trim();
   auth = {
     authorization: authorization.startsWith('Bearer ') ? authorization : `Bearer ${authorization}`,
     deviceId: deviceId || null,
@@ -159,10 +162,11 @@ app.get('/api/auth', (req, res) => {
 // Sessions CRUD
 app.get('/api/sessions', (req, res) => {
   const sessions = loadSessions();
-  // Return summary list (without full track data for speed)
   const list = Object.entries(sessions).map(([id, s]) => ({
     id,
     name: s.name,
+    icon: s.icon || '🎧',
+    locked: !!s.passwordHash,
     createdAt: s.createdAt,
     trackCount: s.tracks ? s.tracks.length : 0,
     ratedCount: s.ratings ? Object.values(s.ratings).filter(r => r.rating).length : 0,
@@ -175,20 +179,40 @@ app.get('/api/sessions/:id', (req, res) => {
   const sessions = loadSessions();
   const session = sessions[req.params.id];
   if (!session) return res.status(404).json({ error: 'Session not found' });
-  res.json(session);
+  if (session.passwordHash) return res.status(403).json({ error: 'Password required', locked: true });
+  const { passwordHash, ...safe } = session;
+  res.json(safe);
+});
+
+// Verify password and return session data
+app.post('/api/sessions/:id/unlock', (req, res) => {
+  const sessions = loadSessions();
+  const session = sessions[req.params.id];
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (!session.passwordHash) {
+    const { passwordHash, ...safe } = session;
+    return res.json(safe);
+  }
+  const { password } = req.body;
+  const hash = crypto.createHash('sha256').update(password || '').digest('hex');
+  if (hash !== session.passwordHash) return res.status(403).json({ error: 'Wrong password' });
+  const { passwordHash, ...safe } = session;
+  res.json(safe);
 });
 
 app.post('/api/sessions', (req, res) => {
-  const { name, tracks } = req.body;
+  const { name, tracks, icon, password } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
 
   const sessions = loadSessions();
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   sessions[id] = {
     name,
+    icon: icon || '🎧',
     tracks: tracks || [],
     ratings: {},
     createdAt: new Date().toISOString(),
+    ...(password ? { passwordHash: crypto.createHash('sha256').update(password).digest('hex') } : {}),
   };
   saveSessions(sessions);
   res.json({ ok: true, id });
